@@ -1,17 +1,16 @@
+
 #include "ALACAKART.h"
 #include <PID_v1.h>
 #include <MadgwickAHRS.h>
 
-ALACA_KART Veri_Kontrol;              // AlacaKart ana kontrol nesnesi
-Madgwick filter;                      // Madgwick yönelim filtresi
+ALACA_KART Veri_Kontrol;
+Madgwick filter;
 
-// PID kontrol değişkenleri
 double rollSetpoint = 0.0, rollInput, rollOutput;
 double pitchSetpoint = 0.0, pitchInput, pitchOutput;
 double yawSetpoint = 0.0, yawInput, yawOutput;
 double depthSetpoint = 1.5, depthInput, depthOutput;
 
-// PID nesneleri tanımlanıyor
 PID rollPID(&rollInput, &rollOutput, &rollSetpoint, 5.0, 0.01, 1.0, DIRECT);
 PID pitchPID(&pitchInput, &pitchOutput, &pitchSetpoint, 5.0, 0.01, 1.0, DIRECT);
 PID yawPID(&yawInput, &yawOutput, &yawSetpoint, 4.0, 0.01, 2.0, DIRECT);
@@ -22,30 +21,25 @@ const int SERVO_MIN = 0;
 const int SERVO_MAX = 180;
 
 unsigned long baslangic_zamani;
-int motor_pwm = 1000; // Başlangıçta motor hiç çalışmasın
-const int hedef_pwm = 2000;
+int motor_pwm = 1490; // Başlangıçta motor duracak şekilde
+const int hedef_pwm = 1000; // Artık 1000 bizim maksimum hızımız oldu
 
 void setup() {
   Serial.begin(57600);
-
-  // Sensörler ve servo motorların başlatılması
   Veri_Kontrol.Sensor_begin();
-  Veri_Kontrol.Servo_1_begin(); // ESC çıkışı (motor kontrolü)
-  Veri_Kontrol.Servo_2_begin(); // Sol roll kuyruğu (sağa-sola dönme)
-  Veri_Kontrol.Servo_3_begin(); // Ön pitch kuyruğu (ileri/geri eğim)
-  Veri_Kontrol.Servo_4_begin(); // Sağ roll kuyruğu
-  Veri_Kontrol.Servo_5_begin(); // Arka pitch kuyruğu
 
-  // ESC (Motor) yumuşak başlatma - motor_pwm = 0 ise motor çalışmaz
-  Veri_Kontrol.Servo_1(motor_pwm);
-  
-  // ESC yumuşak başlatma (motor 1000'den yavaş yavaş artar)
-  for (int pwm = 1000; pwm <= 1200; pwm += 2) {
+  Veri_Kontrol.Servo_1_begin(); // ESC
+  Veri_Kontrol.Servo_2_begin(); // Roll sol
+  Veri_Kontrol.Servo_3_begin(); // Pitch ön
+  Veri_Kontrol.Servo_4_begin(); // Roll sağ
+  Veri_Kontrol.Servo_5_begin(); // Pitch arka
+
+  Serial.println(">>> ESC PWM yavaşça artırılıyor...");
+  for (int pwm = 1490; pwm >= 1200; pwm -= 2) {
     Veri_Kontrol.Servo_1(pwm);
     delay(10);
   }
 
-  // PID modlarının aktif hale getirilmesi
   rollPID.SetMode(AUTOMATIC);
   pitchPID.SetMode(AUTOMATIC);
   yawPID.SetMode(AUTOMATIC);
@@ -56,15 +50,14 @@ void setup() {
   yawPID.SetOutputLimits(-30, 30);
   depthPID.SetOutputLimits(-15, 15);
 
-  baslangic_zamani = millis(); // sistemin başlama zamanı kaydediliyor
+  baslangic_zamani = millis();
 }
 
 void loop() {
   unsigned long now = millis();
-  float dt = 0.02;  // sabit zaman dilimi
-  float gecen_sure = (now - baslangic_zamani) / 1000.0; // saniye cinsinden geçen süre
+  float dt = 0.02;
+  float gecen_sure = (now - baslangic_zamani) / 1000.0;
 
-  // IMU'dan ivme ve gyro verileri okunuyor
   float ax = Veri_Kontrol.LIA_ACC_X();
   float ay = Veri_Kontrol.LIA_ACC_Y();
   float az = Veri_Kontrol.LIA_ACC_Z();
@@ -72,57 +65,50 @@ void loop() {
   float gy = Veri_Kontrol.GYRO_Y();
   float gz = Veri_Kontrol.GYRO_Z();
 
-  // Madgwick filtresi ile yönelim (roll, pitch, yaw) hesaplanıyor
   filter.updateIMU(gx, gy, gz, ax, ay, az);
   rollInput = filter.getRoll();
   pitchInput = filter.getPitch();
   yawInput = filter.getYaw();
-  depthInput = 1.5 - Veri_Kontrol.Alt(); // derinlik hatası hesaplanıyor (BAR30 sensöründen)
+  depthInput = 1.5 - Veri_Kontrol.Alt();
 
-  // PID algoritmaları ile düzeltmeler hesaplanıyor
   rollPID.Compute();
   pitchPID.Compute();
   yawPID.Compute();
   depthPID.Compute();
 
-  // Servo sinyalleri hesaplanıyor (Roll, Pitch, Depth)
   int servoRollSol = constrain(SERVO_NEUTRAL + rollOutput + yawOutput, SERVO_MIN, SERVO_MAX);
   int servoRollSag = constrain(SERVO_NEUTRAL - rollOutput - yawOutput, SERVO_MIN, SERVO_MAX);
   int servoPitchOn = constrain(SERVO_NEUTRAL + pitchOutput + depthOutput, SERVO_MIN, SERVO_MAX);
   int servoPitchArka = constrain(SERVO_NEUTRAL - pitchOutput - depthOutput, SERVO_MIN, SERVO_MAX);
 
-  // Servo çıkışları uygulanıyor (kuş bakışı kontrol yüzeyleri)
-  Veri_Kontrol.Servo_2(servoRollSol); // sol roll kuyruğu
-  Veri_Kontrol.Servo_4(servoRollSag); // sağ roll kuyruğu
-  Veri_Kontrol.Servo_3(servoPitchOn); // ön pitch kuyruğu
-  Veri_Kontrol.Servo_5(servoPitchArka); // arka pitch kuyruğu
+  Veri_Kontrol.Servo_2(servoRollSol);
+  Veri_Kontrol.Servo_4(servoRollSag);
+  Veri_Kontrol.Servo_3(servoPitchOn);
+  Veri_Kontrol.Servo_5(servoPitchArka);
 
-  // Görev akışına göre PWM kontrol ve hareketler
   if (gecen_sure < 15) {
-    motor_pwm = 0; // sistem başlangıcı - 15s bekleme
+    motor_pwm = 1490;
   } else if (gecen_sure < 25) {
-    yawSetpoint = yawInput;       // 10 saniye düz git
+    yawSetpoint = yawInput;
     motor_pwm = hedef_pwm;
   } else if (gecen_sure < 30) {
-    yawSetpoint = yawInput + 90;  // 90 derece sağa dönüş
-    Veri_Kontrol.Servo_2(60);     // dönüş için sol kuyruk aşağı
-    Veri_Kontrol.Servo_4(120);    // sağ kuyruk yukarı
+    yawSetpoint = yawInput + 90;
+    Veri_Kontrol.Servo_3(60);
+    Veri_Kontrol.Servo_5(120);
   } else if (gecen_sure < 35) {
-    yawSetpoint = yawInput + 90;  // yönü sabit tutarak düz git
+    yawSetpoint = yawInput + 90;
     motor_pwm = hedef_pwm;
   } else {
-    depthSetpoint = 0.0;  // yüzeye çıkış başlatılır
-    Veri_Kontrol.Servo_3(60); // yunuslama: ön kuyruk aşağı
-    Veri_Kontrol.Servo_5(120); // arka kuyruk yukarı
+    depthSetpoint = 0.0;
+    Veri_Kontrol.Servo_3(60);
+    Veri_Kontrol.Servo_5(120);
     if (Veri_Kontrol.Alt() < 0.2) {
-      motor_pwm = 0;   // yüzeye ulaşıldığında motor tamamen susturulur
+      motor_pwm = 1490;
     }
   }
 
-  // PWM çıkışı uygulanıyor (ESC motor kontrol)
   Veri_Kontrol.Servo_1(motor_pwm);
 
-  // Seri port üzerinden telemetri
   Serial.print("Zaman: "); Serial.print(gecen_sure);
   Serial.print(" s | Derinlik: "); Serial.print(Veri_Kontrol.Alt(), 2);
   Serial.print(" m | Yaw: "); Serial.print(yawInput);
