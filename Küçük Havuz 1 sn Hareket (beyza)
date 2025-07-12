@@ -1,0 +1,98 @@
+#include "ALACAKART.h"
+
+ALACA_KART Veri_Kontrol;
+
+const int SERVO_NEUTRAL = 90;
+const int SERVO_LEFT = 60;
+const int SERVO_RIGHT = 120;
+const int MOTOR_MAX_PWM = 2000;
+int motor_pwm = 1000;
+
+unsigned long start_time = 0;
+unsigned long prev_maneuver_time = 0;
+int hareket_durumu = 0; // 0: düz, 1: sağ, 2: sol
+
+void setup() {
+  Serial.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+
+  Veri_Kontrol.Servo_1_begin(); // ESC
+  Veri_Kontrol.Servo_2_begin(); // Roll sol
+  Veri_Kontrol.Servo_3_begin(); // Pitch ön
+  Veri_Kontrol.Servo_4_begin(); // Roll sağ
+  Veri_Kontrol.Servo_5_begin(); // Pitch arka
+
+  // ESC yavaş başlatma
+  Serial.println(">>> ESC PWM yavaşça artırılıyor...");
+  for (int pwm = 1000; pwm <= 1200; pwm += 2) {
+    Veri_Kontrol.Servo_1(pwm);
+    delay(10);
+  }
+
+  start_time = millis();
+  prev_maneuver_time = start_time + 10000; // 10s sonra başlasın
+}
+
+void loop() {
+  unsigned long now = millis();
+  float gecen_sure = (now - start_time) / 1000.0;
+
+  // İlk 10 saniye bekleme
+  if (now - start_time < 10000) {
+    Veri_Kontrol.Servo_1(1000);
+    Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
+    Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+    Veri_Kontrol.Servo_2_Write(SERVO_NEUTRAL);
+    Veri_Kontrol.Servo_4_Write(SERVO_NEUTRAL);
+    return;
+  }
+
+  // PWM değeri yavaşça arttırılır
+  if (motor_pwm < MOTOR_MAX_PWM) {
+    motor_pwm += 2;
+    if (motor_pwm > MOTOR_MAX_PWM) motor_pwm = MOTOR_MAX_PWM;
+  }
+  Veri_Kontrol.Servo_1(motor_pwm);
+
+  // Her 2 saniyede bir hareket değiştir
+  if (now - prev_maneuver_time >= 2000) {
+    prev_maneuver_time = now;
+    hareket_durumu = (hareket_durumu + 1) % 3;
+  }
+
+  switch (hareket_durumu) {
+    case 0:
+      // DÜZ
+      Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
+      Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+      break;
+    case 1:
+      // SAĞA DÖNÜŞ
+      Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
+      Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+      break;
+    case 2:
+      // SOLA DÖNÜŞ
+      Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
+      Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+      break;
+  }
+
+  // Roll kuyrukları sabit tut
+  Veri_Kontrol.Servo_2_Write(SERVO_NEUTRAL);
+  Veri_Kontrol.Servo_4_Write(SERVO_NEUTRAL);
+
+  // Görev süresi 2 dakika sonunda sistem durur
+  if (gecen_sure >= 130) {
+    Veri_Kontrol.Servo_1(1000);
+    Veri_Kontrol.Servo_2_Write(SERVO_NEUTRAL);
+    Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
+    Veri_Kontrol.Servo_4_Write(SERVO_NEUTRAL);
+    Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+    while (true);
+  }
+
+  Serial.print("Zaman: "); Serial.print(gecen_sure);
+  Serial.print(" s | PWM: "); Serial.println(motor_pwm);
+  delay(20);
+}
