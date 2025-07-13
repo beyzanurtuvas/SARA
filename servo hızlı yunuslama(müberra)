@@ -1,0 +1,119 @@
+#include "ALACAKART.h"
+
+ALACA_KART Veri_Kontrol;
+
+const int MOTOR_RUN_PWM = 1000;   // Maksimum hız
+const int MOTOR_STOP_PWM = 1490;  // Motor durdur
+const int MOTOR_LOW_PWM = 1250;   // Hafif güç
+
+// 3 ve 5 numaralı servolar: Yaw ön ve Yaw arka
+const int SERVO_RIGHT = 120;   // Sağa çevir → aşağı
+const int SERVO_LEFT = 60;     // Sola çevir → yukarı
+const int SERVO_NEUTRAL = 90;  // Düz pozisyon
+
+enum Durum {
+  BEKLE,
+  INIS,
+  ILERI,
+  CIKIS,
+  YUZEYDE_BEKLE,
+  DUR
+};
+
+Durum durum = BEKLE;
+
+unsigned long baslangic_zamani = 0;
+unsigned long durum_baslangic = 0;
+
+void setup() {
+  Serial.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+
+  // Servo başlat
+  Veri_Kontrol.Servo_1_begin(); // ESC
+  Veri_Kontrol.Servo_3_begin(); // Yaw ön
+  Veri_Kontrol.Servo_5_begin(); // Yaw arka
+
+  // Başlangıçta motor durdur
+  Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
+
+  Serial.println(">>> Sistem başlatıldı. 15sn bekleniyor...");
+  baslangic_zamani = millis();
+}
+
+void loop() {
+  unsigned long suan = millis();
+
+  switch (durum) {
+
+    case BEKLE:
+      if (suan - baslangic_zamani >= 15000) {
+        durum = INIS;
+        durum_baslangic = suan;
+        Serial.println(">>> INIS başladı.");
+      }
+      break;
+
+    case INIS:
+      // 2 saniye sağa → aşağı yönelim
+      Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
+      Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+      Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+
+      if (suan - durum_baslangic >= 2000) {
+        durum = ILERI;
+        durum_baslangic = suan;
+        Serial.println(">>> ILERI başladı.");
+      }
+      break;
+
+    case ILERI:
+      // 2 saniye düz git
+      Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
+      Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+      Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+
+      if (suan - durum_baslangic >= 2000) {
+        durum = CIKIS;
+        durum_baslangic = suan;
+        Serial.println(">>> CIKIS başladı.");
+      }
+      break;
+
+    case CIKIS:
+      // 3 saniye sola → yukarı yönelim
+      Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
+      Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+      Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+
+      if (suan - durum_baslangic >= 3000) {
+        durum = YUZEYDE_BEKLE;
+        durum_baslangic = suan;
+        Serial.println(">>> YÜZEYDE BEKLEME başladı.");
+      }
+      break;
+
+    case YUZEYDE_BEKLE:
+      // 5 saniye sabit kal (yukarı pitch + hafif motor)
+      Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
+      Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+      Veri_Kontrol.Servo_1(MOTOR_LOW_PWM);
+
+      if (suan - durum_baslangic >= 5000) {
+        durum = DUR;
+        Serial.println(">>> DURUM: Sistem kapanıyor.");
+      }
+      break;
+
+    case DUR:
+      Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
+      Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+      Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
+
+      // BUZZER bağladıysan buraya pin tanımlayıp digitalWrite yapabiliriz
+      while (true); // Tamamen dur
+      break;
+  }
+
+  delay(20);
+}
