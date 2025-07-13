@@ -1,10 +1,13 @@
-
 #include "ALACAKART.h"
 #include <PID_v1.h>
 #include <MadgwickAHRS.h>
+#include <SPI.h>
+#include <SD.h>
 
 ALACA_KART Veri_Kontrol;
 Madgwick filter;
+
+File Veri; // SD kart dosyası
 
 double rollSetpoint = 0.0, rollInput, rollOutput;
 double pitchSetpoint = 0.0, pitchInput, pitchOutput;
@@ -19,27 +22,31 @@ PID depthPID(&depthInput, &depthOutput, &depthSetpoint, 6.0, 0.02, 2.0, DIRECT);
 const int SERVO_NEUTRAL = 90;
 const int SERVO_MIN = 0;
 const int SERVO_MAX = 180;
+const int MOTOR_STOP_PWM = 1490;
+const int MOTOR_RUN_PWM = 1000;
+const int CS_SD = PA4;
 
 unsigned long baslangic_zamani;
-int motor_pwm = 1490; // Başlangıçta motor duracak şekilde
-const int hedef_pwm = 1000; // Artık 1000 bizim maksimum hızımız oldu
+int motor_pwm = MOTOR_STOP_PWM;
+unsigned long sd_yazma_zamani = 0;
 
 void setup() {
   Serial.begin(57600);
   Veri_Kontrol.Sensor_begin();
 
-  Veri_Kontrol.Servo_1_begin(); // ESC
-  Veri_Kontrol.Servo_2_begin(); // Roll sol
-  Veri_Kontrol.Servo_3_begin(); // Pitch ön
-  Veri_Kontrol.Servo_4_begin(); // Roll sağ
-  Veri_Kontrol.Servo_5_begin(); // Pitch arka
+  Veri_Kontrol.Servo_1_begin();
+  Veri_Kontrol.Servo_2_begin();
+  Veri_Kontrol.Servo_3_begin();
+  Veri_Kontrol.Servo_4_begin();
+  Veri_Kontrol.Servo_5_begin();
 
-  Serial.println(">>> ESC PWM yavaşça artırılıyor...");
-  for (int pwm = 1490; pwm >= 1200; pwm -= 2) {
+  // ESC başlatma
+  for (int pwm = MOTOR_STOP_PWM; pwm >= 1200; pwm -= 2) {
     Veri_Kontrol.Servo_1(pwm);
     delay(10);
   }
 
+  // PID ayarları
   rollPID.SetMode(AUTOMATIC);
   pitchPID.SetMode(AUTOMATIC);
   yawPID.SetMode(AUTOMATIC);
@@ -50,12 +57,20 @@ void setup() {
   yawPID.SetOutputLimits(-30, 30);
   depthPID.SetOutputLimits(-15, 15);
 
+  // SD Kart başlatma
+  SPI.begin();
+  if (SD.begin(CS_SD)) {
+    Veri = SD.open("Veriler.txt", FILE_WRITE);
+    if (Veri) {
+      Veri.println("Zaman,Yaw,Pitch,Roll,Derinlik");
+    }
+  }
+
   baslangic_zamani = millis();
 }
 
 void loop() {
   unsigned long now = millis();
-  float dt = 0.02;
   float gecen_sure = (now - baslangic_zamani) / 1000.0;
 
   float ax = Veri_Kontrol.LIA_ACC_X();
@@ -69,7 +84,7 @@ void loop() {
   rollInput = filter.getRoll();
   pitchInput = filter.getPitch();
   yawInput = filter.getYaw();
-  depthInput = 1.5 - Veri_Kontrol.Alt();
+  depthInput = 1.5 - Veri_Kontrol.Alt(); // Derinlik hatası
 
   rollPID.Compute();
   pitchPID.Compute();
@@ -81,34 +96,45 @@ void loop() {
   int servoPitchOn = constrain(SERVO_NEUTRAL + pitchOutput + depthOutput, SERVO_MIN, SERVO_MAX);
   int servoPitchArka = constrain(SERVO_NEUTRAL - pitchOutput - depthOutput, SERVO_MIN, SERVO_MAX);
 
+  // Servo çıkışları
   Veri_Kontrol.Servo_2(servoRollSol);
   Veri_Kontrol.Servo_4(servoRollSag);
   Veri_Kontrol.Servo_3(servoPitchOn);
   Veri_Kontrol.Servo_5(servoPitchArka);
 
   if (gecen_sure < 15) {
-    motor_pwm = 1490;
+    motor_pwm = MOTOR_STOP_PWM;  // Bekleme süresi
   } else if (gecen_sure < 25) {
     yawSetpoint = yawInput;
-    motor_pwm = hedef_pwm;
+    motor_pwm = MOTOR_RUN_PWM;   // Düz ileri
   } else if (gecen_sure < 30) {
-    yawSetpoint = yawInput + 90;
-    Veri_Kontrol.Servo_3(60);
-    Veri_Kontrol.Servo_5(120);
+    yawSetpoint = yawInput + 90;  // Sağ dönüş
   } else if (gecen_sure < 35) {
     yawSetpoint = yawInput + 90;
-    motor_pwm = hedef_pwm;
+    motor_pwm = MOTOR_RUN_PWM;
   } else {
-    depthSetpoint = 0.0;
-    Veri_Kontrol.Servo_3(60);
-    Veri_Kontrol.Servo_5(120);
+    depthSetpoint = 0.0; // Yüzeye çıkış (yunuslama)
+    Veri_Kontrol.Servo_3(60); // ön kuyruk aşağı
+    Veri_Kontrol.Servo_5(120); // arka kuyruk yukarı
+
     if (Veri_Kontrol.Alt() < 0.2) {
-      motor_pwm = 1490;
+      motor_pwm = MOTOR_STOP_PWM; // Motor durur
     }
   }
 
-  Veri_Kontrol.Servo_1(motor_pwm);
+  Veri_Kontrol.Servo_1(motor_pwm); // ESC çıkışı
 
+  // SD karta veri yazımı (her 50 ms)
+  if (Veri && (millis() - sd_yazma_zamani > 50)) {
+    Veri.print(gecen_sure, 2); Veri.print(",");
+    Veri.print(yawInput, 2);   Veri.print(",");
+    Veri.print(pitchInput, 2); Veri.print(",");
+    Veri.print(rollInput, 2);  Veri.print(",");
+    Veri.println(Veri_Kontrol.Alt(), 2);
+    sd_yazma_zamani = millis();
+  }
+
+  // Seri izleme
   Serial.print("Zaman: "); Serial.print(gecen_sure);
   Serial.print(" s | Derinlik: "); Serial.print(Veri_Kontrol.Alt(), 2);
   Serial.print(" m | Yaw: "); Serial.print(yawInput);
