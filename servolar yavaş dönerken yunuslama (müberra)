@@ -1,17 +1,14 @@
-
-// Baştan sona, servoların yavaşça döndüğü final kod
 #include "ALACAKART.h"
 
 ALACA_KART Veri_Kontrol;
 
-const int MOTOR_RUN_PWM = 1000;   // Maksimum hız
-const int MOTOR_STOP_PWM = 1490;  // Motor durdur
-const int MOTOR_LOW_PWM = 1250;   // Hafif güç
+const int MOTOR_RUN_PWM = 1000;
+const int MOTOR_STOP_PWM = 1490;
+const int MOTOR_LOW_PWM = 1250;
 
-// 3 ve 5 numaralı servolar: Yaw ön ve Yaw arka
-const int SERVO_RIGHT = 120;   // Sağa çevir → aşağı
-const int SERVO_LEFT = 60;     // Sola çevir → yukarı
-const int SERVO_NEUTRAL = 90;  // Düz pozisyon
+const int SERVO_RIGHT = 120;   // Aşağı
+const int SERVO_LEFT = 60;     // Yukarı
+const int SERVO_NEUTRAL = 90;  // Düz
 
 enum Durum {
   BEKLE,
@@ -27,18 +24,29 @@ Durum durum = BEKLE;
 unsigned long baslangic_zamani = 0;
 unsigned long durum_baslangic = 0;
 
-// Servo geçişlerini yavaş yapmak için yardımcı fonksiyon
-void servoYavasDon(int servoNo, int baslangic, int hedef, int toplamSureMs) {
-  int fark = abs(hedef - baslangic);
-  if (fark == 0) return;
+// İki servoyu aynı anda yavaş döndür
+void ikiServoyuYavasDon(int hedef3, int hedef5, int toplamSureMs) {
+  int mevcut3 = SERVO_NEUTRAL;
+  int mevcut5 = SERVO_NEUTRAL;
 
-  int adim = (hedef > baslangic) ? 1 : -1;
-  int gecikme = toplamSureMs / fark;
+  int fark3 = abs(hedef3 - mevcut3);
+  int fark5 = abs(hedef5 - mevcut5);
+  int maxFark = max(fark3, fark5);
 
-  for (int aci = baslangic; aci != hedef; aci += adim) {
-    if (servoNo == 3) Veri_Kontrol.Servo_3_Write(aci);
-    else if (servoNo == 5) Veri_Kontrol.Servo_5_Write(aci);
-    delay(gecikme);
+  // Her adımda servoyu ve motoru aynı anda kontrol et
+  for (int i = 0; i <= maxFark; i++) {
+    int aci3 = mevcut3 + (i <= fark3 ? ((hedef3 > mevcut3) ? i : -i) : (hedef3 - mevcut3));
+    int aci5 = mevcut5 + (i <= fark5 ? ((hedef5 > mevcut5) ? i : -i) : (hedef5 - mevcut5));
+
+    Veri_Kontrol.Servo_3_Write(aci3);
+    Veri_Kontrol.Servo_5_Write(aci5);
+
+    // INIS aşamasındaysak motoru çalıştır
+    if (durum == INIS) {
+      Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+    }
+
+    delay(toplamSureMs / maxFark);
   }
 }
 
@@ -46,12 +54,10 @@ void setup() {
   Serial.begin(57600);
   Veri_Kontrol.Sensor_begin();
 
-  // Servo başlat
-  Veri_Kontrol.Servo_1_begin(); // ESC
-  Veri_Kontrol.Servo_3_begin(); // Yaw ön
-  Veri_Kontrol.Servo_5_begin(); // Yaw arka
+  Veri_Kontrol.Servo_1_begin();
+  Veri_Kontrol.Servo_3_begin();
+  Veri_Kontrol.Servo_5_begin();
 
-  // Başlangıçta motor durdur
   Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
 
   Serial.println(">>> Sistem başlatıldı. 7sn bekleniyor...");
@@ -68,10 +74,8 @@ void loop() {
         durum = INIS;
         durum_baslangic = suan;
         Serial.println(">>> INIS başladı.");
-        // Aşağı yönelim (yavaş servo dönüşü)
-        servoYavasDon(3, SERVO_NEUTRAL, SERVO_RIGHT, 3000);
-        servoYavasDon(5, SERVO_NEUTRAL, SERVO_LEFT, 3000);
-        Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+        // Motor ve servo aynı anda çalışmaya başlar
+        ikiServoyuYavasDon(SERVO_RIGHT, SERVO_LEFT, 3000);
       }
       break;
 
@@ -80,8 +84,7 @@ void loop() {
         durum = ILERI;
         durum_baslangic = suan;
         Serial.println(">>> ILERI başladı.");
-        Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
-        Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+        ikiServoyuYavasDon(SERVO_NEUTRAL, SERVO_NEUTRAL, 1000);
         Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
       }
       break;
@@ -91,9 +94,7 @@ void loop() {
         durum = CIKIS;
         durum_baslangic = suan;
         Serial.println(">>> CIKIS başladı.");
-        // Yukarı yönelim (yavaş servo dönüşü)
-        servoYavasDon(3, SERVO_NEUTRAL, SERVO_LEFT, 3000);
-        servoYavasDon(5, SERVO_NEUTRAL, SERVO_RIGHT, 3000);
+        ikiServoyuYavasDon(SERVO_LEFT, SERVO_RIGHT, 3000);
         Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
       }
       break;
@@ -120,7 +121,7 @@ void loop() {
       Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
       Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
       Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
-      while (true); // Tamamen dur
+      while (true);
       break;
   }
 
