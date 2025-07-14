@@ -1,0 +1,128 @@
+
+// Baştan sona, servoların yavaşça döndüğü final kod
+#include "ALACAKART.h"
+
+ALACA_KART Veri_Kontrol;
+
+const int MOTOR_RUN_PWM = 1000;   // Maksimum hız
+const int MOTOR_STOP_PWM = 1490;  // Motor durdur
+const int MOTOR_LOW_PWM = 1250;   // Hafif güç
+
+// 3 ve 5 numaralı servolar: Yaw ön ve Yaw arka
+const int SERVO_RIGHT = 120;   // Sağa çevir → aşağı
+const int SERVO_LEFT = 60;     // Sola çevir → yukarı
+const int SERVO_NEUTRAL = 90;  // Düz pozisyon
+
+enum Durum {
+  BEKLE,
+  INIS,
+  ILERI,
+  CIKIS,
+  YUZEYDE_BEKLE,
+  DUR
+};
+
+Durum durum = BEKLE;
+
+unsigned long baslangic_zamani = 0;
+unsigned long durum_baslangic = 0;
+
+// Servo geçişlerini yavaş yapmak için yardımcı fonksiyon
+void servoYavasDon(int servoNo, int baslangic, int hedef, int toplamSureMs) {
+  int fark = abs(hedef - baslangic);
+  if (fark == 0) return;
+
+  int adim = (hedef > baslangic) ? 1 : -1;
+  int gecikme = toplamSureMs / fark;
+
+  for (int aci = baslangic; aci != hedef; aci += adim) {
+    if (servoNo == 3) Veri_Kontrol.Servo_3_Write(aci);
+    else if (servoNo == 5) Veri_Kontrol.Servo_5_Write(aci);
+    delay(gecikme);
+  }
+}
+
+void setup() {
+  Serial.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+
+  // Servo başlat
+  Veri_Kontrol.Servo_1_begin(); // ESC
+  Veri_Kontrol.Servo_3_begin(); // Yaw ön
+  Veri_Kontrol.Servo_5_begin(); // Yaw arka
+
+  // Başlangıçta motor durdur
+  Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
+
+  Serial.println(">>> Sistem başlatıldı. 7sn bekleniyor...");
+  baslangic_zamani = millis();
+}
+
+void loop() {
+  unsigned long suan = millis();
+
+  switch (durum) {
+
+    case BEKLE:
+      if (suan - baslangic_zamani >= 7000) {
+        durum = INIS;
+        durum_baslangic = suan;
+        Serial.println(">>> INIS başladı.");
+        // Aşağı yönelim (yavaş servo dönüşü)
+        servoYavasDon(3, SERVO_NEUTRAL, SERVO_RIGHT, 3000);
+        servoYavasDon(5, SERVO_NEUTRAL, SERVO_LEFT, 3000);
+        Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+      }
+      break;
+
+    case INIS:
+      if (suan - durum_baslangic >= 3000) {
+        durum = ILERI;
+        durum_baslangic = suan;
+        Serial.println(">>> ILERI başladı.");
+        Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
+        Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+        Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+      }
+      break;
+
+    case ILERI:
+      if (suan - durum_baslangic >= 2000) {
+        durum = CIKIS;
+        durum_baslangic = suan;
+        Serial.println(">>> CIKIS başladı.");
+        // Yukarı yönelim (yavaş servo dönüşü)
+        servoYavasDon(3, SERVO_NEUTRAL, SERVO_LEFT, 3000);
+        servoYavasDon(5, SERVO_NEUTRAL, SERVO_RIGHT, 3000);
+        Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+      }
+      break;
+
+    case CIKIS:
+      if (suan - durum_baslangic >= 3000) {
+        durum = YUZEYDE_BEKLE;
+        durum_baslangic = suan;
+        Serial.println(">>> YÜZEYDE BEKLEME başladı.");
+        Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
+        Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+        Veri_Kontrol.Servo_1(MOTOR_LOW_PWM);
+      }
+      break;
+
+    case YUZEYDE_BEKLE:
+      if (suan - durum_baslangic >= 5000) {
+        durum = DUR;
+        Serial.println(">>> DURUM: Sistem kapanıyor.");
+      }
+      break;
+
+    case DUR:
+      Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
+      Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+      Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
+      while (true); // Tamamen dur
+      break;
+  }
+
+  delay(20);
+}
