@@ -57,7 +57,7 @@ void loop() {
     case INIS:
       // 2 saniye sağa → aşağı yönelim
       Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
-      Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+      Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
       Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
 
       if (suan - durum_baslangic >= 2000) {
@@ -83,7 +83,7 @@ void loop() {
     case CIKIS:
       // 3 saniye sola → yukarı yönelim
       Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
-      Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+      Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
       Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
 
       if (suan - durum_baslangic >= 3000) {
@@ -96,7 +96,7 @@ void loop() {
     case YUZEYDE_BEKLE:
       // 5 saniye sabit kal (yukarı pitch + hafif motor)
       Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
-      Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+      Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
       Veri_Kontrol.Servo_1(MOTOR_LOW_PWM);
 
       if (suan - durum_baslangic >= 5000) {
