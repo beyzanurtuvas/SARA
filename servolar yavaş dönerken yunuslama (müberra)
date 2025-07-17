@@ -2,6 +2,135 @@
 
 ALACA_KART Veri_Kontrol;
 
+// ESC PWM değerleri (1490-2000 aralığı)
+const int MOTOR_RUN_PWM = 2000;   // Tam güç
+const int MOTOR_STOP_PWM = 1490;  // ESC durdur
+const int MOTOR_LOW_PWM = 1600;   // Hafif motor
+
+// Servo açıları
+const int SERVO_RIGHT = 120;   // Aşağı
+const int SERVO_LEFT = 60;     // Yukarı
+const int SERVO_NEUTRAL = 90;  // Düz
+
+enum Durum {
+  BEKLE,
+  INIS,
+  ILERI,
+  CIKIS,
+  YUZEYDE_BEKLE,
+  DUR
+};
+
+Durum durum = BEKLE;
+
+unsigned long baslangic_zamani = 0;
+unsigned long durum_baslangic = 0;
+
+// İki servoyu aynı anda yavaş döndür
+void ikiServoyuYavasDon(int hedef3, int hedef5, int toplamSureMs) {
+  int mevcut3 = SERVO_NEUTRAL;
+  int mevcut5 = SERVO_NEUTRAL;
+
+  int fark3 = abs(hedef3 - mevcut3);
+  int fark5 = abs(hedef5 - mevcut5);
+  int maxFark = max(fark3, fark5);
+
+  for (int i = 0; i <= maxFark; i++) {
+    int aci3 = mevcut3 + (i <= fark3 ? ((hedef3 > mevcut3) ? i : -i) : (hedef3 - mevcut3));
+    int aci5 = mevcut5 + (i <= fark5 ? ((hedef5 > mevcut5) ? i : -i) : (hedef5 - mevcut5));
+
+    Veri_Kontrol.Servo_3_Write(aci3);
+    Veri_Kontrol.Servo_5_Write(aci5);
+
+    if (durum == INIS) {
+      Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+    }
+
+    delay(toplamSureMs / maxFark);
+  }
+}
+
+void setup() {
+  Serial.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+
+  Veri_Kontrol.Servo_1_begin(); // ESC
+  Veri_Kontrol.Servo_3_begin(); // Yaw ön
+  Veri_Kontrol.Servo_5_begin(); // Yaw arka
+
+  Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
+
+  Serial.println(">>> Sistem başlatıldı. 7sn bekleniyor...");
+  baslangic_zamani = millis();
+}
+
+void loop() {
+  unsigned long suan = millis();
+
+  switch (durum) {
+    case BEKLE:
+      if (suan - baslangic_zamani >= 7000) {
+        durum = INIS;
+        durum_baslangic = suan;
+        Serial.println(">>> INIS başladı.");
+        ikiServoyuYavasDon(SERVO_RIGHT, SERVO_LEFT, 3000);
+      }
+      break;
+
+    case INIS:
+      if (suan - durum_baslangic >= 3000) {
+        durum = ILERI;
+        durum_baslangic = suan;
+        Serial.println(">>> ILERI başladı.");
+        ikiServoyuYavasDon(SERVO_NEUTRAL, SERVO_NEUTRAL, 1000);
+        Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+      }
+      break;
+
+    case ILERI:
+      if (suan - durum_baslangic >= 2000) {
+        durum = CIKIS;
+        durum_baslangic = suan;
+        Serial.println(">>> CIKIS başladı.");
+        ikiServoyuYavasDon(SERVO_LEFT, SERVO_RIGHT, 3000);
+        Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+      }
+      break;
+
+    case CIKIS:
+      if (suan - durum_baslangic >= 3000) {
+        durum = YUZEYDE_BEKLE;
+        durum_baslangic = suan;
+        Serial.println(">>> YÜZEYDE BEKLEME başladı.");
+        Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
+        Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+        Veri_Kontrol.Servo_1(MOTOR_LOW_PWM);
+      }
+      break;
+
+    case YUZEYDE_BEKLE:
+      if (suan - durum_baslangic >= 5000) {
+        durum = DUR;
+        Serial.println(">>> DURUM: Sistem kapanıyor.");
+      }
+      break;
+
+    case DUR:
+      Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
+      Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+      Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
+      while (true);
+      break;
+  }
+
+  delay(20);
+}
+
+------------------------------------------------------------------------------------------------------------------------------------------------------
+#include "ALACAKART.h"
+
+ALACA_KART Veri_Kontrol;
+
 const int MOTOR_RUN_PWM = 1000;
 const int MOTOR_STOP_PWM = 1490;
 const int MOTOR_LOW_PWM = 1250;
