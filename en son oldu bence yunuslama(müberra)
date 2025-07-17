@@ -3,6 +3,131 @@
 
 ALACA_KART Veri_Kontrol;
 
+// Yeni kalibrasyon aralığına göre PWM değerleri
+const int MOTOR_RUN_PWM = 2000;   // Maksimum hız
+const int MOTOR_STOP_PWM = 1490;  // Durdurma PWM (altı çalışmaz)
+const int MOTOR_LOW_PWM = 1600;   // Hafif motor çalışması
+
+const int SERVO_RIGHT = 120;   // Aşağı
+const int SERVO_LEFT = 60;     // Yukarı
+const int SERVO_NEUTRAL = 90;  // Düz
+
+enum Durum {
+  BEKLE,
+  INIS,
+  ILERI,
+  CIKISA_HAZIRLIK,
+  CIKIS,
+  YUZEYDE_BEKLE,
+  DUR
+};
+
+Durum durum = BEKLE;
+
+unsigned long baslangic_zamani = 0;
+unsigned long durum_baslangic = 0;
+
+void yavasServoGit(int hedefAci3, int hedefAci5, int gecikmeMs = 20) {
+  int mevcutAci3 = SERVO_NEUTRAL;
+  int mevcutAci5 = SERVO_NEUTRAL;
+
+  for (int i = 0; i <= abs(hedefAci3 - mevcutAci3); i++) {
+    int aci3 = (hedefAci3 > mevcutAci3) ? mevcutAci3 + i : mevcutAci3 - i;
+    int aci5 = (hedefAci5 > mevcutAci5) ? mevcutAci5 + i : mevcutAci5 - i;
+
+    Veri_Kontrol.Servo_3_Write(aci3);
+    Veri_Kontrol.Servo_5_Write(aci5);
+    delay(gecikmeMs);
+  }
+}
+
+void setup() {
+  Serial.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+
+  Veri_Kontrol.Servo_1_begin(); // ESC
+  Veri_Kontrol.Servo_3_begin(); // Yaw ön
+  Veri_Kontrol.Servo_5_begin(); // Yaw arka
+
+  Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);  // ESC'e "durdurma" değeri gönder
+
+  Serial.println(">>> Sistem başlatıldı. 7sn bekleniyor...");
+  baslangic_zamani = millis();
+}
+
+void loop() {
+  unsigned long suan = millis();
+
+  switch (durum) {
+
+    case BEKLE:
+      if (suan - baslangic_zamani >= 7000) {
+        durum = INIS;
+        durum_baslangic = suan;
+        Serial.println(">>> INIS başladı.");
+        yavasServoGit(SERVO_RIGHT, SERVO_LEFT); // yavaşça aşağı eğ
+      }
+      break;
+
+    case INIS:
+      Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);  // 2000 PWM ile ileri
+      if (suan - durum_baslangic >= 2000) {
+        durum = ILERI;
+        durum_baslangic = suan;
+        Serial.println(">>> ILERI başladı.");
+        yavasServoGit(SERVO_NEUTRAL, SERVO_NEUTRAL); // yavaşça düzleş
+      }
+      break;
+
+    case ILERI:
+      Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);  // 2000 PWM
+      if (suan - durum_baslangic >= 2000) {
+        durum = CIKISA_HAZIRLIK;
+        durum_baslangic = suan;
+        Serial.println(">>> CIKISA hazırlık.");
+        delay(500); // düz pozisyonda yarım saniye bekle
+      }
+      break;
+
+    case CIKISA_HAZIRLIK:
+      durum = CIKIS;
+      durum_baslangic = suan;
+      Serial.println(">>> CIKIS başladı.");
+      yavasServoGit(SERVO_LEFT, SERVO_RIGHT); // yavaşça yukarı eğ
+      break;
+
+    case CIKIS:
+      Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);  // 2000 PWM yukarı çıkışta da devam
+      if (suan - durum_baslangic >= 3000) {
+        durum = YUZEYDE_BEKLE;
+        durum_baslangic = suan;
+        Serial.println(">>> Yüzeyde bekleme.");
+      }
+      break;
+
+    case YUZEYDE_BEKLE:
+      Veri_Kontrol.Servo_1(MOTOR_LOW_PWM);  // 1600 PWM hafif çalış
+      if (suan - durum_baslangic >= 5000) {
+        durum = DUR;
+        Serial.println(">>> DURUM: Sistem kapanıyor.");
+      }
+      break;
+
+    case DUR:
+      Veri_Kontrol.Servo_1(MOTOR_STOP_PWM); // ESC dur
+      while (true); // Sistem tamamen durur
+      break;
+  }
+
+  delay(20);
+}
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------
+#include "ALACAKART.h"
+
+ALACA_KART Veri_Kontrol;
+
 const int MOTOR_RUN_PWM = 1000;   // Max hız
 const int MOTOR_STOP_PWM = 1490;  // Durdurma PWM
 const int MOTOR_LOW_PWM = 1250;   // Hafif motor
@@ -26,13 +151,13 @@ Durum durum = BEKLE;
 unsigned long baslangic_zamani = 0;
 unsigned long durum_baslangic = 0;
 
-void yavasServoGit(int hedefAcı3, int hedefAcı5, int gecikmeMs = 20) {
-  int mevcutAcı3 = SERVO_NEUTRAL;
-  int mevcutAcı5 = SERVO_NEUTRAL;
+void yavasServoGit(int hedefAci3, int hedefAci5, int gecikmeMs = 20) {
+  int mevcutAci3 = SERVO_NEUTRAL;
+  int mevcutAci5 = SERVO_NEUTRAL;
 
-  for (int i = 0; i <= abs(hedefAcı3 - mevcutAcı3); i++) {
-    int aci3 = (hedefAcı3 > mevcutAcı3) ? mevcutAcı3 + i : mevcutAcı3 - i;
-    int aci5 = (hedefAcı5 > mevcutAcı5) ? mevcutAcı5 + i : mevcutAcı5 - i;
+  for (int i = 0; i <= abs(hedefAci3 - mevcutAci3); i++) {
+    int aci3 = (hedefAci3 > mevcutAci3) ? mevcutAci3 + i : mevcutAci3 - i;
+    int aci5 = (hedefAci5 > mevcutAci5) ? mevcutAci5 + i : mevcutAci5 - i;
 
     Veri_Kontrol.Servo_3_Write(aci3);
     Veri_Kontrol.Servo_5_Write(aci5);
@@ -120,4 +245,3 @@ void loop() {
 
   delay(20);
 }
-
