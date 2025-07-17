@@ -1,0 +1,77 @@
+#include "ALACAKART.h"
+
+ALACA_KART Veri_Kontrol;
+
+// PWM sabitleri
+const int MOTOR_RUN_PWM = 2000;
+const int MOTOR_STOP_PWM = 1490;
+const int MOTOR_LOW_PWM = 1600;
+
+const int SERVO_RIGHT = 120;
+const int SERVO_LEFT = 60;
+const int SERVO_NEUTRAL = 90;
+
+// Zaman değişkenleri
+unsigned long baslangic_zamani = 0;
+bool donus_basladi = false;
+bool motor_hazirlandi = false;
+
+void setup() {
+  Serial.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+
+  Veri_Kontrol.Servo_1_begin(); // ESC
+  Veri_Kontrol.Servo_3_begin(); // Yaw sağ
+  Veri_Kontrol.Servo_5_begin(); // Yaw sol
+
+  // ESC yavaş başlatma
+  for (int pwm = 1490; pwm <= 1600; pwm += 1) {
+    Veri_Kontrol.Servo_1(pwm);
+    delay(10);
+  }
+  Serial.println(">>> Sistem başlatıldı. 5 saniye bekleniyor...");
+  baslangic_zamani = millis();
+}
+
+void loop() {
+  unsigned long simdi = millis();
+  unsigned long gecen_ms = simdi - baslangic_zamani;
+  float gecen_saniye = gecen_ms / 1000.0;
+
+  // 5. saniyede motor yavaşça başlatılacak
+  if (!motor_hazirlandi && gecen_saniye >= 5.0) {
+    Serial.println(">>> ESC yavaş başlatılıyor...");
+    for (int pwm = MOTOR_STOP_PWM; pwm <= MOTOR_RUN_PWM; pwm++) {
+      Veri_Kontrol.Servo_1(pwm);
+      delay(10); // yavaş artış
+    }
+    motor_hazirlandi = true;
+    Serial.println(">>> Motor tam hızda. Sağa dönüş başlıyor.");
+  }
+
+  // 5 ile 25. saniye arasında sağa dönüş (20 saniye)
+  if (motor_hazirlandi && gecen_saniye >= 5.0 && gecen_saniye < 25.0) {
+    Veri_Kontrol.Servo_3_Write(SERVO_LEFT);   // sağ dönüş için biri sola
+    Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);  // diğeri sağa
+    Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);      // motor tam hızda
+  }
+
+  // 25. saniyeden sonra yavaşça motoru durdur
+  else if (motor_hazirlandi && gecen_saniye >= 25.0) {
+    Serial.println(">>> Görev tamamlandı. Motor yavaşça durduruluyor...");
+
+    // Servoları nötrle
+    Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
+    Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+
+    for (int pwm = MOTOR_RUN_PWM; pwm >= MOTOR_STOP_PWM; pwm--) {
+      Veri_Kontrol.Servo_1(pwm);
+      delay(10); // yavaş yavaş durdur
+    }
+
+    Serial.println(">>> Sistem durdu.");
+    while (true); // dur
+  }
+
+  delay(20);
+}
