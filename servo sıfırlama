@@ -1,0 +1,29 @@
+#include "ALACAKART.h"
+
+ALACA_KART Veri_Kontrol;
+
+// Servo nötr konum
+const int SERVO_NEUTRAL = 90;
+
+void setup() {
+  Serial.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+
+  // Servoları başlat
+  Veri_Kontrol.Servo_2_begin(); // Roll sol
+  Veri_Kontrol.Servo_3_begin(); // Pitch ön
+  Veri_Kontrol.Servo_4_begin(); // Roll sağ
+  Veri_Kontrol.Servo_5_begin(); // Pitch arka
+
+  // Tüm servoları nötr konuma getir
+  Veri_Kontrol.Servo_2_Write(SERVO_NEUTRAL);
+  Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
+  Veri_Kontrol.Servo_4_Write(SERVO_NEUTRAL);
+  Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+
+  Serial.println("Tüm servo konumları sıfırlandı (90 derece).");
+}
+
+void loop() {
+  // Döngü gerekmez, sadece setup yeterlidir
+}
