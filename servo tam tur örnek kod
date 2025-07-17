@@ -1,0 +1,28 @@
+#include "ALACAKART.h"
+ALACA_KART Veri_Kontrol;
+
+void setup()
+{
+  Serial1.begin(57600);
+  Veri_Kontrol.Servo_1_begin(); //Kart Üzerindeki PWM_1 çıkışını Servo olarak ayarlanır
+  Veri_Kontrol.Servo_2_begin();
+  Veri_Kontrol.Servo_3_begin();
+  Veri_Kontrol.Servo_4_begin();
+  Veri_Kontrol.Servo_5_begin();
+  Veri_Kontrol.Servo_6_begin();
+}
+
+void loop()
+{
+  for (int i = 0; i <= 180; i += 1)
+  {
+  //  Veri_Kontrol.Servo_1_Write(i);          //0 ile 180 derece arası deger almalıdır.
+    Veri_Kontrol.Servo_2_Write(i);
+    Veri_Kontrol.Servo_3_Write(i);
+    Veri_Kontrol.Servo_4_Write(i);
+    Veri_Kontrol.Servo_5_Write(i);
+    //Veri_Kontrol.Servo_6_Write(i);
+    delay(15);
+  }
+  delay(10);
+}
