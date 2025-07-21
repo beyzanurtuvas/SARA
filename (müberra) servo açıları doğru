@@ -1,0 +1,179 @@
+#include "ALACAKART.h"
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BNO055.h>
+#include <MS5611.h>
+
+ALACA_KART kart;
+Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x28);
+MS5611 basincSensor;
+
+enum Durum {
+  BEKLE,
+  INIS,
+  ILERI1,
+  SAGA_DON,
+  ILERI2,
+  SOLA_DON,
+  ILERI3,
+  YUKARI_CIK,
+  MANEVRA,
+  YUZEYE_CIK,
+  DUR
+};
+
+Durum durum = BEKLE;
+unsigned long durumBaslangic = 0;
+
+const int MOTOR_RUN = 2000;
+const int MOTOR_STOP = 1490;
+const int MOTOR_LOW = 1600;
+
+void motorPWM(int pwm) {
+  kart.Servo_1(pwm);
+}
+
+void setPitch(int s2, int s4) {
+  kart.Servo_2_Write(s2);
+  kart.Servo_4_Write(s4);
+}
+
+void setYaw(int s3, int s5) {
+  kart.Servo_3_Write(s3);
+  kart.Servo_5_Write(s5);
+}
+
+void setup() {
+  Serial.begin(57600);
+  kart.Sensor_begin();
+
+  kart.Servo_1_begin();
+  kart.Servo_2_begin();
+  kart.Servo_3_begin();
+  kart.Servo_4_begin();
+  kart.Servo_5_begin();
+
+  motorPWM(MOTOR_STOP);
+
+  bno.begin();
+  basincSensor.begin();
+
+  pinMode(PC13, OUTPUT);
+  digitalWrite(PC13, LOW);
+
+  Serial.println(">>> 7sn bekleniyor...");
+  durumBaslangic = millis();
+}
+
+void loop() {
+  unsigned long suan = millis();
+  float derinlik = basincSensor.getDepth();
+
+  switch (durum) {
+    case BEKLE:
+      if (suan - durumBaslangic >= 7000) {
+        durum = INIS;
+        durumBaslangic = suan;
+        setPitch(120, 60);  // aşağı eğ
+        motorPWM(MOTOR_RUN);
+        Serial.println(">>> INIS");
+      }
+      break;
+
+    case INIS:
+      if (derinlik >= 1.0) {
+        setPitch(90, 90); // düzleş
+        durum = ILERI1;
+        durumBaslangic = suan;
+        Serial.println(">>> ILERI1");
+      }
+      break;
+
+    case ILERI1:
+      if (suan - durumBaslangic >= 5000) {
+        durum = SAGA_DON;
+        durumBaslangic = suan;
+        setYaw(60, 120); // sağa dön
+        Serial.println(">>> SAGA DON");
+      }
+      break;
+
+    case SAGA_DON:
+      if (suan - durumBaslangic >= 2000) {
+        setYaw(90, 90); // düz
+        durum = ILERI2;
+        durumBaslangic = suan;
+        Serial.println(">>> ILERI2");
+      }
+      break;
+
+    case ILERI2:
+      if (suan - durumBaslangic >= 5000) {
+        durum = SOLA_DON;
+        durumBaslangic = suan;
+        setYaw(120, 60); // sola dön
+        Serial.println(">>> SOLA DON");
+      }
+      break;
+
+    case SOLA_DON:
+      if (suan - durumBaslangic >= 2000) {
+        setYaw(90, 90); // düz
+        durum = ILERI3;
+        durumBaslangic = suan;
+        Serial.println(">>> ILERI3");
+      }
+      break;
+
+    case ILERI3:
+      if (suan - durumBaslangic >= 5000) {
+        durum = YUKARI_CIK;
+        durumBaslangic = suan;
+        setPitch(60, 120); // yukarı çık
+        Serial.println(">>> 20cm yukarı çık");
+      }
+      break;
+
+    case YUKARI_CIK:
+      if (derinlik <= 0.8) {
+        setPitch(90, 90); // düzleş
+        durum = MANEVRA;
+        durumBaslangic = suan;
+        Serial.println(">>> MANEVRA başlıyor");
+      }
+      break;
+
+    case MANEVRA:
+      if (suan - durumBaslangic <= 60000) {
+        // basit rastgele hareket
+        setPitch(random(60, 120), 180 - random(60, 120));
+        setYaw(random(60, 120), 180 - random(60, 120));
+        motorPWM(MOTOR_RUN);
+        delay(1000);
+      } else {
+        setPitch(60, 120); // yüzeye çıkmaya hazır
+        durum = YUZEYE_CIK;
+        Serial.println(">>> YÜZEYE CIK");
+        durumBaslangic = suan;
+      }
+      break;
+
+    case YUZEYE_CIK:
+      if (derinlik <= 0.1) {
+        motorPWM(MOTOR_STOP);
+        digitalWrite(PC13, HIGH); // LED yak
+        durum = DUR;
+        Serial.println(">>> LED YANDI - BİTTİ");
+      } else {
+        setPitch(60, 120); // yukarı eğimli tut
+        motorPWM(MOTOR_RUN);
+      }
+      break;
+
+    case DUR:
+      // Sistem durur
+      break;
+  }
+
+  delay(20);
+}
