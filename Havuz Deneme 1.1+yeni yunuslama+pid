@@ -1,0 +1,179 @@
+#include "ALACAKART.h"
+#include <SPI.h>
+#include <SD.h>
+
+ALACA_KART Veri_Kontrol;
+File Veri;
+
+// Sabitler
+const int CS_SD = PA4;
+const int SERVO_NEUTRAL = 90;
+const int SERVO_LEFT = 45;          // Saga donuste on servo sola, arka servo saga
+const int SERVO_RIGHT = 135;        // Sola donuste on servo saga, arka servo sola
+const int MOTOR_RUN_PWM = 2000;
+const int MOTOR_STOP_PWM = 1490;
+const int MOTOR_LOW_PWM = 1600;
+
+// PID Sabitleri
+float Kp_yaw = 1.2, Ki_yaw = 0.0, Kd_yaw = 0.5;
+float Kp_pitch = 1.2, Ki_pitch = 0.0, Kd_pitch = 0.5;
+
+// PID değişkenleri
+float yaw_integral = 0, yaw_last_error = 0;
+float pitch_integral = 0, pitch_last_error = 0;
+
+unsigned long oncekiZaman = 0;
+
+void motorYavasArtir(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm <= hedefPWM; pwm += 2) {
+    Veri_Kontrol.Servo_1(pwm);
+    delay(10);
+  }
+}
+
+void motorYavasAzalt(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm >= hedefPWM; pwm -= 2) {
+    Veri_Kontrol.Servo_1(pwm);
+    delay(10);
+  }
+}
+
+void yavasServoGit(int hedefAci2, int hedefAci4, int gecikmeMs = 20) {
+  int mevcutAci2 = SERVO_NEUTRAL;
+  int mevcutAci4 = SERVO_NEUTRAL;
+  for (int i = 0; i <= abs(hedefAci2 - mevcutAci2); i++) {
+    int aci2 = (hedefAci2 > mevcutAci2) ? mevcutAci2 + i : mevcutAci2 - i;
+    int aci4 = (hedefAci4 > mevcutAci4) ? mevcutAci4 + i : mevcutAci4 - i;
+    Veri_Kontrol.Servo_2_Write(aci2);
+    Veri_Kontrol.Servo_4_Write(aci4);
+    delay(gecikmeMs);
+  }
+}
+
+void tumServolariNotrle() {
+  Veri_Kontrol.Servo_2_Write(SERVO_NEUTRAL);
+  Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
+  Veri_Kontrol.Servo_4_Write(SERVO_NEUTRAL);
+  Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+}
+
+void setup() {
+  Serial.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+
+  Veri_Kontrol.Servo_1_begin();
+  Veri_Kontrol.Servo_2_begin(); // Pitch ön
+  Veri_Kontrol.Servo_3_begin(); // Yaw ön
+  Veri_Kontrol.Servo_4_begin(); // Pitch arka
+  Veri_Kontrol.Servo_5_begin(); // Yaw arka
+
+  SPI.begin();
+  if (SD.begin(CS_SD)) {
+    Veri = SD.open("Veriler.csv", FILE_WRITE);
+    if (Veri) {
+      Veri.println("Time_ms,Pitch,Pitch_Target,Pitch_Error,Pitch_Output,Yaw,Yaw_Target,Yaw_Error,Yaw_Output");
+    }
+  }
+
+  oncekiZaman = millis();
+}
+
+void loop() {
+  static int dongu = 0;
+  if (dongu >= 3) {
+    if (Veri) Veri.close();
+    Serial.println(">>> 3 dongu tamamlandi.");
+    while (true);
+  }
+
+  // PID Hesaplama
+  unsigned long simdi = millis();
+  float dt = (simdi - oncekiZaman) / 1000.0;
+  oncekiZaman = simdi;
+
+  float pitch = Veri_Kontrol.Euler_Y();
+  float yaw = Veri_Kontrol.Euler_Z();
+  float pitch_target = 0;
+  float yaw_target = 0;
+
+  float pitch_error = pitch_target - pitch;
+  pitch_integral += pitch_error * dt;
+  float pitch_derivative = (pitch_error - pitch_last_error) / dt;
+  float pitch_output = Kp_pitch * pitch_error + Ki_pitch * pitch_integral + Kd_pitch * pitch_derivative;
+  pitch_output = constrain(pitch_output, -45, 45);
+  pitch_last_error = pitch_error;
+
+  float yaw_error = yaw_target - yaw;
+  yaw_integral += yaw_error * dt;
+  float yaw_derivative = (yaw_error - yaw_last_error) / dt;
+  float yaw_output = Kp_yaw * yaw_error + Ki_yaw * yaw_integral + Kd_yaw * yaw_derivative;
+  yaw_output = constrain(yaw_output, -45, 45);
+  yaw_last_error = yaw_error;
+
+  Veri_Kontrol.Servo_2_Write(SERVO_NEUTRAL + pitch_output);
+  Veri_Kontrol.Servo_4_Write(SERVO_NEUTRAL - pitch_output);
+  Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL + yaw_output);
+  Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL - yaw_output);
+
+  Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+
+  if (Veri) {
+    Veri.print(simdi); Veri.print(",");
+    Veri.print(pitch); Veri.print(",");
+    Veri.print(pitch_target); Veri.print(",");
+    Veri.print(pitch_error); Veri.print(",");
+    Veri.print(pitch_output); Veri.print(",");
+    Veri.print(yaw); Veri.print(",");
+    Veri.print(yaw_target); Veri.print(",");
+    Veri.print(yaw_error); Veri.print(",");
+    Veri.println(yaw_output);
+  }
+
+  // Görev akışı başlıyor
+  // 0-10 sn bekleme
+  Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
+  delay(10000);
+
+  // Motoru yavaş başlat
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_RUN_PWM);
+
+  // 2 saniye düz git
+  Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+  tumServolariNotrle();
+  delay(2000);
+
+  // Motoru yavaşça durdur
+  motorYavasAzalt(MOTOR_RUN_PWM, MOTOR_STOP_PWM);
+
+  // Sağ dönüş
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_RUN_PWM);
+  Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+  Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
+  Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+  delay(5000);
+  motorYavasAzalt(MOTOR_RUN_PWM, MOTOR_STOP_PWM);
+
+  // Sol dönüş
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_RUN_PWM);
+  Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+  Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
+  Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+  delay(5000);
+  motorYavasAzalt(MOTOR_RUN_PWM, MOTOR_STOP_PWM);
+
+  // Yunuslama başlıyor
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_RUN_PWM);
+  yavasServoGit(SERVO_RIGHT, SERVO_LEFT); // Aşağı eğ
+  delay(2000);
+  yavasServoGit(SERVO_NEUTRAL, SERVO_NEUTRAL); // Düzleş
+  delay(2000);
+  yavasServoGit(SERVO_LEFT, SERVO_RIGHT); // Yukarı eğ
+  delay(2000);
+
+  // Sistem durduruluyor
+  motorYavasAzalt(MOTOR_RUN_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+
+  dongu++;
+  delay(100);
+}
