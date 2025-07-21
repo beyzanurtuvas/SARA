@@ -1,0 +1,165 @@
+#include "ALACAKART.h"
+#include <Wire.h>
+#include <PID_v1.h>
+#include <MS5611.h>
+#include <Adafruit_BNO055.h>
+
+ALACA_KART kart;
+MS5611 basincSensor;
+Adafruit_BNO055 imu = Adafruit_BNO055();
+bool baslatildi = false;
+
+// PID
+double hedefDepth = 1.0; // metre
+double anlikDepth = 0.0;
+double pidCikis = 0;
+double Kp = 10.0, Ki = 0.5, Kd = 1.5;
+PID pid(&anlikDepth, &pidCikis, &hedefDepth, Kp, Ki, Kd, DIRECT);
+
+// State Machine
+enum Durum {
+  BEKLEME,
+  INIS,
+  ILERI1,
+  SAGA_DON,
+  ILERI2,
+  SOLA_DON,
+  ILERI3,
+  YUKARI_CIK,
+  MANEVRA,
+  YUZEYE_CIK,
+  LED_YAK,
+  DUR
+};
+
+Durum durum = BEKLEME;
+unsigned long durumZamani = 0;
+
+void setup() {
+  Serial.begin(57600);
+  kart.Servo_1_begin(); // ESC
+  kart.Servo_2_begin(); // Pitch
+  kart.Servo_3_begin(); // Yaw
+  kart.Sensor_begin();
+
+  pinMode(PC13, OUTPUT); // LED
+
+  Wire.begin();
+  basincSensor.begin();
+  imu.begin();
+
+  pid.SetMode(AUTOMATIC);
+  pid.SetOutputLimits(1490, 2000); // ESC PWM aralığı
+
+  kart.Servo_1(1490); // Motor dur
+}
+
+void loop() {
+  anlikDepth = basincSensor.readPressure() / 100.0; // cm cinsinden
+
+  if (!baslatildi && digitalRead(PB12) == LOW) { // Butona basıldı
+    baslatildi = true;
+    durum = INIS;
+    durumZamani = millis();
+  }
+
+  if (!baslatildi) return;
+
+  unsigned long suan = millis();
+
+  switch (durum) {
+    case INIS:
+      hedefDepth = 1.0;
+      pid.Compute();
+      kart.Servo_1(pidCikis);
+      if (anlikDepth >= 0.95) {
+        durum = ILERI1;
+        durumZamani = suan;
+        kart.Servo_1(1600);
+      }
+      break;
+
+    case ILERI1:
+      kart.Servo_1(1600);
+      if (suan - durumZamani >= 5000) {
+        durum = SAGA_DON;
+        durumZamani = suan;
+      }
+      break;
+
+    case SAGA_DON:
+      kart.Servo_3_Write(60); // Yaw sağ
+      delay(1000);
+      kart.Servo_3_Write(90);
+      durum = ILERI2;
+      durumZamani = millis();
+      break;
+
+    case ILERI2:
+      kart.Servo_1(1600);
+      if (suan - durumZamani >= 5000) {
+        durum = SOLA_DON;
+        durumZamani = suan;
+      }
+      break;
+
+    case SOLA_DON:
+      kart.Servo_3_Write(120); // Yaw sol
+      delay(1000);
+      kart.Servo_3_Write(90);
+      durum = ILERI3;
+      durumZamani = millis();
+      break;
+
+    case ILERI3:
+      kart.Servo_1(1600);
+      if (suan - durumZamani >= 5000) {
+        durum = YUKARI_CIK;
+        durumZamani = suan;
+      }
+      break;
+
+    case YUKARI_CIK:
+      hedefDepth = anlikDepth - 0.2;
+      pid.Compute();
+      kart.Servo_1(pidCikis);
+      if (anlikDepth <= hedefDepth + 0.05) {
+        durum = MANEVRA;
+        durumZamani = suan;
+      }
+      break;
+
+    case MANEVRA:
+      if (suan - durumZamani <= 60000) {
+        // Rastgele manevra
+        int rastgeleAci = random(60, 120);
+        kart.Servo_2_Write(rastgeleAci);
+        kart.Servo_3_Write(rastgeleAci);
+        kart.Servo_1(1600);
+        delay(1000);
+      } else {
+        durum = YUZEYE_CIK;
+      }
+      break;
+
+    case YUZEYE_CIK:
+      hedefDepth = 0.0;
+      pid.Compute();
+      kart.Servo_1(pidCikis);
+      if (anlikDepth <= 0.1) {
+        durum = LED_YAK;
+        durumZamani = suan;
+      }
+      break;
+
+    case LED_YAK:
+      digitalWrite(PC13, HIGH);
+      kart.Servo_1(1490);
+      durum = DUR;
+      break;
+
+    case DUR:
+      kart.Servo_1(1490);
+      break;
+  }
+}
