@@ -1,0 +1,229 @@
+#include "ALACAKART.h"
+#include <Wire.h>
+#include <Adafruit_BNO055.h>
+#include <MS5611.h>
+
+// Alacakart objesi
+ALACA_KART Veri_Kontrol;
+Adafruit_BNO055 bno = Adafruit_BNO055(55);
+MS5611 basincSensor;
+
+// Servo PWM Ayarları
+const int SERVO_NEUTRAL = 90;
+const int SERVO_UP = 60;
+const int SERVO_DOWN = 120;
+const int SERVO_LEFT = 60;
+const int SERVO_RIGHT = 120;
+
+// Motor PWM Ayarları
+const int MOTOR_STOP = 1490;
+const int MOTOR_LOW = 1600;
+const int MOTOR_RUN = 2000;
+
+// PID Sabitleri
+float Kp_pitch = 1.0, Ki_pitch = 0.0, Kd_pitch = 0.1;
+float Kp_yaw = 1.0, Ki_yaw = 0.0, Kd_yaw = 0.1;
+float pitch_integral = 0, yaw_integral = 0;
+float pitch_last_error = 0, yaw_last_error = 0;
+
+// Zaman Takibi
+unsigned long lastTime = 0;
+unsigned long durum_baslangic = 0;
+
+// Derinlik ayarı
+float hedefDerinlik = 0.0; // metre cinsinden
+
+// Durumlar
+enum Durum {
+  BEKLE,
+  INIS,
+  DUZ_GIT,
+  SAGA_DON,
+  SAGA_ILERI,
+  SOLA_DON,
+  SOLA_ILERI,
+  YUKARI_CIK_20CM,
+  MANEVRA,
+  YUZEYE_CIK,
+  LED_YAK,
+  DUR
+};
+
+Durum durum = BEKLE;
+
+void setup() {
+  Serial.begin(57600);
+  Wire.begin();
+  bno.begin();
+  basincSensor.begin();
+
+  Veri_Kontrol.Servo_1_begin(); // Motor
+  Veri_Kontrol.Servo_2_begin(); // Pitch
+  Veri_Kontrol.Servo_3_begin(); // Yaw
+  Veri_Kontrol.Servo_4_begin(); // Pitch
+  Veri_Kontrol.Servo_5_begin(); // Yaw
+
+  pinMode(PC13, OUTPUT); // LED çıkışı
+
+  Veri_Kontrol.Servo_1(MOTOR_STOP);
+  Serial.println(">>> Sistem başlatıldı. 7sn bekleniyor...");
+  delay(7000);
+  durum = INIS;
+  durum_baslangic = millis();
+}
+
+void PID_Kontrol(float hedef_pitch, float hedef_yaw) {
+  sensors_event_t orientationData;
+  bno.getEvent(&orientationData);
+  float pitch = orientationData.orientation.x;
+  float yaw = orientationData.orientation.y;
+
+  unsigned long now = millis();
+  float dt = (now - lastTime) / 1000.0;
+  lastTime = now;
+
+  float pitch_error = hedef_pitch - pitch;
+  float yaw_error = hedef_yaw - yaw;
+
+  pitch_integral += pitch_error * dt;
+  yaw_integral += yaw_error * dt;
+
+  float pitch_derivative = (pitch_error - pitch_last_error) / dt;
+  float yaw_derivative = (yaw_error - yaw_last_error) / dt;
+
+  float pitch_output = Kp_pitch * pitch_error + Ki_pitch * pitch_integral + Kd_pitch * pitch_derivative;
+  float yaw_output = Kp_yaw * yaw_error + Ki_yaw * yaw_integral + Kd_yaw * yaw_derivative;
+
+  pitch_last_error = pitch_error;
+  yaw_last_error = yaw_error;
+
+  int servo2 = constrain(SERVO_NEUTRAL - pitch_output, 60, 120);
+  int servo4 = constrain(SERVO_NEUTRAL + pitch_output, 60, 120);
+  int servo3 = constrain(SERVO_NEUTRAL - yaw_output, 60, 120);
+  int servo5 = constrain(SERVO_NEUTRAL + yaw_output, 60, 120);
+
+  Veri_Kontrol.Servo_2_Write(servo2);
+  Veri_Kontrol.Servo_4_Write(servo4);
+  Veri_Kontrol.Servo_3_Write(servo3);
+  Veri_Kontrol.Servo_5_Write(servo5);
+  Veri_Kontrol.Servo_1(MOTOR_RUN);
+}
+
+void loop() {
+  basincSensor.read();
+  float pressure = basincSensor.getPressure();
+  float depth = basincSensor.getDepth();
+
+  PID_Kontrol(0, 0);  // Düz konumda sabit kalmaya çalış
+
+  switch (durum) {
+    case INIS:
+      if (depth < 1.0) {
+        Veri_Kontrol.Servo_2_Write(SERVO_DOWN);
+        Veri_Kontrol.Servo_4_Write(SERVO_UP);
+      } else {
+        durum = DUZ_GIT;
+        durum_baslangic = millis();
+      }
+      break;
+
+    case DUZ_GIT:
+      if (millis() - durum_baslangic >= 5000) {
+        durum = SAGA_DON;
+        durum_baslangic = millis();
+      }
+      break;
+
+    case SAGA_DON:
+      Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
+      Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+      if (millis() - durum_baslangic >= 1000) {
+        durum = SAGA_ILERI;
+        durum_baslangic = millis();
+      }
+      break;
+
+    case SAGA_ILERI:
+      if (millis() - durum_baslangic >= 5000) {
+        durum = SOLA_DON;
+        durum_baslangic = millis();
+      }
+      break;
+
+    case SOLA_DON:
+      Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
+      Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+      if (millis() - durum_baslangic >= 1000) {
+        durum = SOLA_ILERI;
+        durum_baslangic = millis();
+      }
+      break;
+
+    case SOLA_ILERI:
+      if (millis() - durum_baslangic >= 5000) {
+        durum = YUKARI_CIK_20CM;
+        durum_baslangic = millis();
+      }
+      break;
+
+    case YUKARI_CIK_20CM:
+      if (depth > 0.8) {
+        Veri_Kontrol.Servo_2_Write(SERVO_UP);
+        Veri_Kontrol.Servo_4_Write(SERVO_DOWN);
+      } else {
+        durum = MANEVRA;
+        durum_baslangic = millis();
+      }
+      break;
+
+    case MANEVRA:
+      // 1 dakika boyunca karışık servo hareketleri
+      if (millis() - durum_baslangic < 60000) {
+        int rastgele = random(0, 4);
+        switch (rastgele) {
+          case 0:
+            Veri_Kontrol.Servo_2_Write(SERVO_DOWN);
+            Veri_Kontrol.Servo_4_Write(SERVO_UP);
+            break;
+          case 1:
+            Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
+            Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+            break;
+          case 2:
+            Veri_Kontrol.Servo_2_Write(SERVO_UP);
+            Veri_Kontrol.Servo_4_Write(SERVO_DOWN);
+            break;
+          case 3:
+            Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
+            Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+            break;
+        }
+        delay(1000);
+      } else {
+        durum = YUZEYE_CIK;
+        durum_baslangic = millis();
+      }
+      break;
+
+    case YUZEYE_CIK:
+      if (depth > 0.2) {
+        Veri_Kontrol.Servo_2_Write(SERVO_UP);
+        Veri_Kontrol.Servo_4_Write(SERVO_DOWN);
+      } else {
+        durum = LED_YAK;
+      }
+      break;
+
+    case LED_YAK:
+      digitalWrite(PC13, HIGH);
+      durum = DUR;
+      break;
+
+    case DUR:
+      Veri_Kontrol.Servo_1(MOTOR_STOP);
+      while (true);
+      break;
+  }
+
+  delay(20);
+}
