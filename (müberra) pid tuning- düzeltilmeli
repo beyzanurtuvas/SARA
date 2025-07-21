@@ -1,0 +1,92 @@
+#include "ALACAKART.h"
+ALACA_KART Veri_Kontrol;
+
+// Sensor Verileri
+float Pitch_Aci, Yaw_Aci;
+float Gyro_y, Gyro_z;
+float Alt, Ref_Alt = -1.0; // 1 metre derinlik
+
+// Referans değerler (hedef)
+float Ref_Pitch = 0;
+float Ref_Yaw = 0;
+
+// PID Çıkışları
+float pid_out_pitch, pid_out_yaw, pid_out_depth;
+
+// PID Ayarları
+float Kp_pitch = 0.8, Ki_pitch = 0.02, Kd_pitch = 0.05;
+float Kp_yaw   = 1.0, Ki_yaw   = 0.015, Kd_yaw   = 0.06;
+float Kp_depth = 1.2, Ki_depth = 0.03, Kd_depth = 0.07;
+
+float pitch_integral = 0, yaw_integral = 0, depth_integral = 0;
+float pitch_last_error = 0, yaw_last_error = 0, depth_last_error = 0;
+float imax = 10;
+
+unsigned long prevTime = 0;
+
+void setup() {
+  Serial.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+
+  Veri_Kontrol.Servo_2_begin(); // Pitch kontrol
+  Veri_Kontrol.Servo_3_begin(); // Yaw kontrol
+  Veri_Kontrol.Servo_4_begin(); // Derinlik kontrol
+}
+
+void loop() {
+  unsigned long now = millis();
+  float dt = (now - prevTime) / 1000.0;
+  if (dt < 0.02) return; // 50 Hz sınırı
+  prevTime = now;
+
+  // --- Sensor Okuma ---
+  Pitch_Aci = Veri_Kontrol.Euler_Y();
+  Yaw_Aci   = Veri_Kontrol.Euler_Z();
+  Alt       = Veri_Kontrol.Altitude(); // Metre cinsinden derinlik
+  Gyro_y    = Veri_Kontrol.GYRO_Y();
+  Gyro_z    = Veri_Kontrol.GYRO_Z();
+
+  // --- Hatalar ---
+  float pitch_error = (Ref_Pitch - Pitch_Aci) * 5 - Gyro_y;
+  float yaw_error   = (Ref_Yaw   - Yaw_Aci)   * 5 - Gyro_z;
+  float depth_error = (Ref_Alt   - Alt) * 10; // Gyro yok derinlikte
+
+  // --- İntegral Güncelleme ---
+  pitch_integral += pitch_error * dt;
+  yaw_integral   += yaw_error * dt;
+  depth_integral += depth_error * dt;
+
+  // Anti-windup sınırı
+  pitch_integral = constrain(pitch_integral, -imax, imax);
+  yaw_integral   = constrain(yaw_integral,   -imax, imax);
+  depth_integral = constrain(depth_integral, -imax, imax);
+
+  // --- Türev ---
+  float pitch_deriv = (pitch_error - pitch_last_error) / dt;
+  float yaw_deriv   = (yaw_error   - yaw_last_error) / dt;
+  float depth_deriv = (depth_error - depth_last_error) / dt;
+
+  // --- PID Çıkışları ---
+  pid_out_pitch = Kp_pitch * pitch_error + Ki_pitch * pitch_integral + Kd_pitch * pitch_deriv;
+  pid_out_yaw   = Kp_yaw   * yaw_error   + Ki_yaw   * yaw_integral   + Kd_yaw   * yaw_deriv;
+  pid_out_depth = Kp_depth * depth_error + Ki_depth * depth_integral + Kd_depth * depth_deriv;
+
+  pitch_last_error = pitch_error;
+  yaw_last_error   = yaw_error;
+  depth_last_error = depth_error;
+
+  // --- Servo'lara Uygula ---
+  Veri_Kontrol.Servo_2_Write(90 + pid_out_pitch); // Pitch
+  Veri_Kontrol.Servo_3_Write(90 + pid_out_yaw);   // Yaw
+  Veri_Kontrol.Servo_4_Write(90 + pid_out_depth); // Depth
+
+  // --- Seri İzleme ---
+  Serial.print("PITCH: "); Serial.print(Pitch_Aci); Serial.print(" -> ");
+  Serial.print("PID_OUT: "); Serial.print(pid_out_pitch);
+  Serial.print(" | YAW: "); Serial.print(Yaw_Aci); Serial.print(" -> ");
+  Serial.print("PID_OUT: "); Serial.print(pid_out_yaw);
+  Serial.print(" | ALT: "); Serial.print(Alt); Serial.print(" -> ");
+  Serial.print("PID_OUT: "); Serial.println(pid_out_depth);
+
+  delay(5);
+}
