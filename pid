@@ -1,0 +1,60 @@
+//pid fonksiyonu 
+#include "ALACAKART.h"
+
+ALACA_KART Veri_Kontrol;
+
+// PID değişkenleri (yaw)
+float previousYawError = 0.0;
+float integralYaw = 0.0;
+unsigned long lastTimeYaw = 0;
+
+// PID değişkenleri (pitch)
+float previousPitchError = 0.0;
+float integralPitch = 0.0;
+unsigned long lastTimePitch = 0;
+
+// PID hesaplama fonksiyonu
+float calculatePID(float setpoint, float measured, float& previousError, float& integral, unsigned long& lastTime, float Kp, float Ki, float Kd) {
+  unsigned long now = millis();
+  float deltaTime = (now - lastTime) / 1000.0;
+
+  if (deltaTime <= 0.0) deltaTime = 0.001;
+
+  float error = setpoint - measured;
+
+  integral += error * deltaTime;
+  integral = constrain(integral, -100, 100); // anti-windup
+
+  float derivative = (error - previousError) / deltaTime;
+
+  float output = Kp * error + Ki * integral + Kd * derivative;
+  output = constrain(output, -45, 45); // PID sonucu servo sınırında
+
+  previousError = error;
+  lastTime = now;
+
+  return output;
+}
+
+// kullanma şekli
+
+void stabilizeWithPID() {
+  // IMU’dan okuma
+  float pitch = Veri_Kontrol.Euler_Y(); // Yukarı-aşağı
+  float yaw   = Veri_Kontrol.Euler_Z(); // Sağ-sol
+
+  // Setpoint (hedef açı)
+  float targetPitch = 0.0;
+  float targetYaw   = 0.0;
+
+  // PID çıktılarını hesapla
+  float pitchCorrection = calculatePID(targetPitch, pitch, previousPitchError, integralPitch, lastTimePitch, 3.0, 0.5, 1.0);
+  float yawCorrection   = calculatePID(targetYaw, yaw, previousYawError, integralYaw, lastTimeYaw, 2.5, 0.4, 0.8);
+
+  // PID sonucu servolara aktar (nötr açı 90 derece)
+  Veri_Kontrol.Servo_2_Write(90 + pitchCorrection); // Ön servo (pitch)
+  Veri_Kontrol.Servo_4_Write(90 - pitchCorrection); // Arka servo (pitch)
+
+  Veri_Kontrol.Servo_3_Write(90 + yawCorrection);   // Ön servo (yaw)
+  Veri_Kontrol.Servo_5_Write(90 - yawCorrection);   // Arka servo (yaw)
+}
