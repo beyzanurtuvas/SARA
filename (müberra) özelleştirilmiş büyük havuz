@@ -1,0 +1,237 @@
+#include <ALACAKART.h>
+#include <SD.h>
+#include <SPI.h>
+#include <SimpleKalmanFilter.h>
+
+// Sistem nesneleri
+ALACA_KART Roket;
+File logFile;
+
+// Kalman filtreleri
+SimpleKalmanFilter kalmanPitch(1, 1, 0.01);
+SimpleKalmanFilter kalmanYaw(1, 1, 0.01);
+SimpleKalmanFilter kalmanDepth(1, 1, 0.01);
+
+// PID verileri
+double pitchSet = 0, pitchInput = 0, pitchOut = 0;
+double yawSet = 0, yawInput = 0, yawOut = 0;
+double depthSet = 1.5, depthInput = 0, depthOut = 0;
+
+// PWM sınırları
+const int SERVO_MIN = 0;
+const int SERVO_MAX = 180;
+const int SERVO_NEUTRAL = 90;
+int motorPWM = 1000, hedefPWM = 1650;
+
+// FSM
+unsigned long stateTimer = 0;
+int state = 0;
+bool logAktif = false;
+
+// Offsetler
+float derinlikOffset = 0;
+float ax_offset = 0.0;
+float vx = 0.0, ileri_mesafe = 0.0;
+
+// Güvenlik
+unsigned long sensorSonZaman = 0;
+const unsigned long SENSOR_TIMEOUT = 1000;
+
+// SoftPWM ramp
+void softPWM(int hedef, int &mevcut) {
+  if (mevcut < hedef) mevcut += 3;
+  else if (mevcut > hedef) mevcut -= 3;
+}
+
+// PWM sıfırla (fail-safe)
+void pwmSifirla() {
+  for (int i = 1; i <= 6; i++) {
+    Roket.Servo_X(i, 1000);
+  }
+}
+
+// RGB led durumu
+void ledDurum(char durum) {
+  if (durum == 'R') Roket.LED_RGB(255, 0, 0);       // HATA
+  else if (durum == 'G') Roket.LED_RGB(0, 255, 0);   // NORMAL
+  else if (durum == 'B') Roket.LED_RGB(0, 0, 255);   // GÖREV
+  else Roket.LED_RGB(0, 0, 0);                       // OFF
+}
+
+// Loglama
+void logla() {
+  if (!logAktif) return;
+  logFile.print(millis()); logFile.print(",");
+  logFile.print(pitchInput); logFile.print(",");
+  logFile.print(yawInput); logFile.print(",");
+  logFile.print(depthInput); logFile.print(",");
+  logFile.print(motorPWM); logFile.print(",");
+  logFile.println(state);
+}
+
+void setup() {
+  Serial.begin(57600);
+  Roket.Sensor_begin();
+  Roket.Servo_1_begin(); Roket.Servo_2_begin();
+  Roket.Servo_3_begin(); Roket.Servo_4_begin();
+  Roket.Servo_5_begin(); Roket.Servo_6_begin();
+  Roket.LED_begin();
+
+  ledDurum('B');
+
+  // Kalibrasyon
+  long ax_toplam = 0;
+  for (int i = 0; i < 100; i++) {
+    ax_toplam += Roket.LIA_ACC_X();
+    delay(5);
+  }
+  ax_offset = ax_toplam / 100.0;
+  derinlikOffset = Roket.Alt();
+
+  // SD Kart
+  if (SD.begin(10)) {
+    logFile = SD.open("log.txt", FILE_WRITE);
+    logAktif = true;
+    logFile.println("ms,pitch,yaw,depth,pwm,state");
+  }
+
+  stateTimer = millis();
+  ledDurum('G');
+}
+
+void loop() {
+  unsigned long now = millis();
+  float dt = (now - stateTimer) / 1000.0;
+  stateTimer = now;
+
+  // Sensor zaman kontrolü
+  if (now - sensorSonZaman > SENSOR_TIMEOUT) {
+    pwmSifirla();
+    ledDurum('R');
+    while (true); // Kitlen → güvenlik
+  }
+
+  // Sensör verisi ve Kalman filtre
+  pitchInput = kalmanPitch.updateEstimate(Roket.Euler_Y());
+  yawInput = Roket.Euler_Z(); if (yawInput > 180) yawInput -= 360;
+  yawInput = kalmanYaw.updateEstimate(yawInput);
+  depthInput = kalmanDepth.updateEstimate(Roket.Alt() - derinlikOffset);
+  sensorSonZaman = now;
+
+  // PID hesaplama (manuel hesaplıyoruz çünkü basit kontrol yeterli)
+  pitchOut = constrain((pitchSet - pitchInput) * 3.5, -30, 30);
+  yawOut = constrain((yawSet - yawInput) * 2.5, -30, 30);
+  depthOut = constrain((depthSet - depthInput) * 4.0, -15, 15);
+
+  // Servo kontrol
+  int servoPitch1 = constrain(SERVO_NEUTRAL + pitchOut + depthOut, SERVO_MIN, SERVO_MAX);
+  int servoPitch2 = constrain(SERVO_NEUTRAL - pitchOut - depthOut, SERVO_MIN, SERVO_MAX);
+  int servoYaw1   = constrain(SERVO_NEUTRAL + yawOut, SERVO_MIN, SERVO_MAX);
+  int servoYaw2   = constrain(SERVO_NEUTRAL - yawOut, SERVO_MIN, SERVO_MAX);
+
+  Roket.Servo_2(servoPitch1);
+  Roket.Servo_4(servoPitch2);
+  Roket.Servo_3(servoYaw1);
+  Roket.Servo_5(servoYaw2);
+
+  // İvmeden mesafe tahmini
+  float ax = (Roket.LIA_ACC_X() - ax_offset) / 1000.0 * 9.81;
+  if (abs(ax) < 0.2) ax = 0;
+  vx += ax * dt;
+  vx *= 0.99;
+  ileri_mesafe += vx * dt;
+  if (ileri_mesafe < 0) ileri_mesafe = 0;
+
+  // STATE MACHINE
+  switch (state) {
+    case 0:
+      softPWM(hedefPWM, motorPWM);
+      if (now >= 7000) state++; // 7 sn sonra dal
+      break;
+
+    case 1:
+      depthSet = 1.0;
+      if (abs(depthInput - 1.0) < 0.1) {
+        ileri_mesafe = 0;
+        state++;
+      }
+      break;
+
+    case 2:
+      softPWM(hedefPWM, motorPWM);
+      if (ileri_mesafe >= 1.5) {
+        ileri_mesafe = 0;
+        state++;
+      }
+      break;
+
+    case 3:
+      yawSet = 90;
+      if (abs(yawInput - 90) < 10) {
+        ileri_mesafe = 0;
+        state++;
+      }
+      break;
+
+    case 4:
+      if (ileri_mesafe >= 1.5) {
+        ileri_mesafe = 0;
+        state++;
+      }
+      break;
+
+    case 5:
+      yawSet = 0;
+      if (abs(yawInput) < 10) {
+        ileri_mesafe = 0;
+        state++;
+      }
+      break;
+
+    case 6:
+      depthSet = 0.8;
+      if (abs(depthInput - 0.8) < 0.1) {
+        state++;
+      }
+      break;
+
+    case 7:
+      static unsigned long randomTimer = now;
+      if (now - randomTimer < 60000) {
+        // 1 dakika boyunca rastgele pitch/yaw varyasyonu
+        pitchSet = random(-10, 10);
+        yawSet = random(-10, 10);
+      } else {
+        pitchSet = 0; yawSet = 0;
+        state++;
+      }
+      break;
+
+    case 8:
+      depthSet = 0.1;
+      if (depthInput < 0.2) {
+        state++;
+      }
+      break;
+
+    case 9:
+      pwmSifirla();
+      ledDurum('B');
+      while (true); // Görev tamamlandı
+  }
+
+  softPWM(motorPWM, motorPWM);
+  Roket.Servo_1(motorPWM);
+
+  // Log
+  logla();
+
+  // Durum serial
+  Serial.print("STATE: "); Serial.print(state);
+  Serial.print(" | PITCH: "); Serial.print(pitchInput);
+  Serial.print(" | YAW: "); Serial.print(yawInput);
+  Serial.print(" | DEPTH: "); Serial.print(depthInput);
+  Serial.print(" | MESAFE: "); Serial.println(ileri_mesafe);
+
+  delay(20);
+}
