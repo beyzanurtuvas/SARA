@@ -1,0 +1,188 @@
+#include "ALACAKART.h"
+ALACA_KART Veri_Kontrol;
+
+// Sensör verileri
+float Pitch_Aci, Yaw_Aci;
+float Gyro_y, Gyro_z;
+float Alt, Ref_Alt;
+
+float Ref_Pitch = 0;
+float Ref_Yaw = 0;
+
+// PID ayarları
+float Kp_pitch = 0.8, Ki_pitch = 0.02, Kd_pitch = 0.05;
+float Kp_yaw   = 1.0, Ki_yaw   = 0.015, Kd_yaw   = 0.06;
+float Kp_depth = 1.2, Ki_depth = 0.03, Kd_depth = 0.07;
+
+float pitch_integral = 0, yaw_integral = 0, depth_integral = 0;
+float pitch_last_error = 0, yaw_last_error = 0, depth_last_error = 0;
+float pid_out_pitch, pid_out_yaw, pid_out_depth;
+float imax = 10;
+
+// Görev kontrol
+int gorev_durumu = -1; // -1: başlamadı
+unsigned long gorev_baslangic = 0;
+unsigned long prevTime = 0;
+
+void setup() {
+  Serial.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+
+  // Servo ve motorları başlat
+  Veri_Kontrol.Servo_2_begin(); // pitch
+  Veri_Kontrol.Servo_3_begin(); // yaw
+  Veri_Kontrol.Servo_4_begin(); // pitch simetrik
+  Veri_Kontrol.Servo_5_begin(); // yaw simetrik
+  Veri_Kontrol.Motor_1_begin();
+  Veri_Kontrol.Led_1_begin();
+
+  // Başlatma butonu (B0 pinine bağlıysa)
+  pinMode(B0, INPUT_PULLUP); // Butona basılınca LOW olur
+}
+
+void loop() {
+  unsigned long now = millis();
+  float dt = (now - prevTime) / 1000.0;
+  if (dt < 0.02) return;
+  prevTime = now;
+
+  // Başlama kontrolü
+  if (gorev_durumu == -1) {
+    if (digitalRead(B0) == LOW) { // butona basıldıysa
+      gorev_baslangic = now;
+      Ref_Alt = Veri_Kontrol.Altitude();
+      gorev_durumu = 0;
+    }
+    return;
+  }
+
+  // --- Sensör verileri
+  Pitch_Aci = Veri_Kontrol.Euler_Y();
+  Yaw_Aci   = Veri_Kontrol.Euler_Z();
+  Gyro_y    = Veri_Kontrol.GYRO_Y();
+  Gyro_z    = Veri_Kontrol.GYRO_Z();
+  Alt       = Veri_Kontrol.Altitude();
+
+  // --- Görev Profili ---
+  switch (gorev_durumu) {
+    case 0: // 7 saniye bekleme
+      Veri_Kontrol.Motor_1_Write(1490); // motor dur
+      if (now - gorev_baslangic > 7000) {
+        gorev_durumu = 1;
+        gorev_baslangic = now;
+        Ref_Alt += 1.0; // 1 metre dal
+      }
+      break;
+
+    case 1: // Derinliğe iniş
+      Veri_Kontrol.Motor_1_Write(1800);
+      if (Alt > Ref_Alt - 0.05) {
+        gorev_durumu = 2;
+        gorev_baslangic = now;
+      }
+      break;
+
+    case 2: // 5 sn düz git
+      Veri_Kontrol.Motor_1_Write(1800);
+      if (now - gorev_baslangic > 5000) {
+        Ref_Yaw += 90;
+        gorev_durumu = 3;
+        gorev_baslangic = now;
+      }
+      break;
+
+    case 3: // 90° sağa dön
+      Veri_Kontrol.Motor_1_Write(1600); // yavaş dön
+      if (abs(Yaw_Aci - Ref_Yaw) < 5) {
+        gorev_durumu = 4;
+        gorev_baslangic = now;
+      }
+      break;
+
+    case 4: // 5 sn düz git
+      Veri_Kontrol.Motor_1_Write(1800);
+      if (now - gorev_baslangic > 5000) {
+        Ref_Yaw -= 90;
+        gorev_durumu = 5;
+        gorev_baslangic = now;
+      }
+      break;
+
+    case 5: // 90° sola dön
+      Veri_Kontrol.Motor_1_Write(1600);
+      if (abs(Yaw_Aci - Ref_Yaw) < 5) {
+        gorev_durumu = 6;
+        gorev_baslangic = now;
+      }
+      break;
+
+    case 6: // 5 sn düz git
+      Veri_Kontrol.Motor_1_Write(1800);
+      if (now - gorev_baslangic > 5000) {
+        Ref_Alt -= 0.2; // 20 cm yukarı çık
+        gorev_durumu = 7;
+        gorev_baslangic = now;
+      }
+      break;
+
+    case 7: // 1 dk rastgele manevra (şimdilik düz git)
+      Veri_Kontrol.Motor_1_Write(1800);
+      if (now - gorev_baslangic > 60000) {
+        Ref_Alt = 0.0; // yüzeye çık
+        gorev_durumu = 8;
+        gorev_baslangic = now;
+      }
+      break;
+
+    case 8: // Yüzeye çıkış ve sistem kapatma
+      Veri_Kontrol.Motor_1_Write(1490);
+      if (Alt < 0.2) {
+        Veri_Kontrol.Led_1_Write(true); // LED yak
+        Veri_Kontrol.Motor_1_Write(1490);
+        gorev_durumu = 9; // tamamlandı
+      }
+      break;
+
+    case 9: // Sistem tamamen durdu
+      Veri_Kontrol.Motor_1_Write(1490);
+      return;
+
+    default:
+      return;
+  }
+
+  // --- PID Hataları
+  float pitch_error = (Ref_Pitch - Pitch_Aci) * 5 - Gyro_y;
+  float yaw_error   = (Ref_Yaw - Yaw_Aci) * 5 - Gyro_z;
+  float depth_error = (Ref_Alt - Alt) * 10;
+
+  // --- İntegral
+  pitch_integral += pitch_error * dt;
+  yaw_integral   += yaw_error * dt;
+  depth_integral += depth_error * dt;
+
+  pitch_integral = constrain(pitch_integral, -imax, imax);
+  yaw_integral   = constrain(yaw_integral, -imax, imax);
+  depth_integral = constrain(depth_integral, -imax, imax);
+
+  // --- Türev
+  float pitch_deriv = (pitch_error - pitch_last_error) / dt;
+  float yaw_deriv   = (yaw_error - yaw_last_error) / dt;
+  float depth_deriv = (depth_error - depth_last_error) / dt;
+
+  // --- PID çıkışları
+  pid_out_pitch = Kp_pitch * pitch_error + Ki_pitch * pitch_integral + Kd_pitch * pitch_deriv;
+  pid_out_yaw   = Kp_yaw * yaw_error + Ki_yaw * yaw_integral + Kd_yaw * yaw_deriv;
+  pid_out_depth = Kp_depth * depth_error + Ki_depth * depth_integral + Kd_depth * depth_deriv;
+
+  pitch_last_error = pitch_error;
+  yaw_last_error   = yaw_error;
+  depth_last_error = depth_error;
+
+  // --- Servo çıkışları (simetrik)
+  Veri_Kontrol.Servo_2_Write(90 + pid_out_pitch);
+  Veri_Kontrol.Servo_4_Write(90 - pid_out_pitch);
+
+  Veri_Kontrol.Servo_3_Write(90 + pid_out_yaw);
+  Veri_Kontrol.Servo_5_Write(90 - pid_out_yaw);
+}
