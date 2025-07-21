@@ -1,60 +1,72 @@
-//pid fonksiyonu 
 #include "ALACAKART.h"
-
 ALACA_KART Veri_Kontrol;
 
-// PID değişkenleri (yaw)
-float previousYawError = 0.0;
-float integralYaw = 0.0;
-unsigned long lastTimeYaw = 0;
+// Sensör verileri
+float Pitch_Aci, Yaw_Aci;
+float Gyro_y, Gyro_z;
 
-// PID değişkenleri (pitch)
-float previousPitchError = 0.0;
-float integralPitch = 0.0;
-unsigned long lastTimePitch = 0;
+// PID hedef değerleri (düz gitme için 0 derece)
+float Ref_Pitch = 0;
+float Ref_Yaw = 0;
 
-// PID hesaplama fonksiyonu
-float calculatePID(float setpoint, float measured, float& previousError, float& integral, unsigned long& lastTime, float Kp, float Ki, float Kd) {
-  unsigned long now = millis();
-  float deltaTime = (now - lastTime) / 1000.0;
+// PID hata ve çıkış değişkenleri
+float pid_hata_pitch = 0, pid_out_pitch = 0;
+float pid_hata_yaw   = 0, pid_out_yaw   = 0;
 
-  if (deltaTime <= 0.0) deltaTime = 0.001;
+// PID sabitleri (daha sonra SD karttan loglanarak ayarlanabilir)
+float Kp_pitch = 0.1, Ki_pitch = 0.0, Kd_pitch = 0.005;
+float Kp_yaw   = 0.1, Ki_yaw   = 0.0, Kd_yaw   = 0.005;
+float imax = 10;
 
-  float error = setpoint - measured;
+void setup() {
+  Serial.begin(57600);
+  Veri_Kontrol.Sensor_begin();  // IMU'yu başlat
 
-  integral += error * deltaTime;
-  integral = constrain(integral, -100, 100); // anti-windup
+  // Servo başlatma (ALACAKART servo pin tanımları)
+  Veri_Kontrol.Servo_1_begin(); // ESC - motor
+  Veri_Kontrol.Servo_2_begin(); // Pitch ön
+  Veri_Kontrol.Servo_3_begin(); // Yaw ön
+  Veri_Kontrol.Servo_4_begin(); // Pitch arka
+  Veri_Kontrol.Servo_5_begin(); // Yaw arka
 
-  float derivative = (error - previousError) / deltaTime;
-
-  float output = Kp * error + Ki * integral + Kd * derivative;
-  output = constrain(output, -45, 45); // PID sonucu servo sınırında
-
-  previousError = error;
-  lastTime = now;
-
-  return output;
+  // PID yapıları (ALACAKART PID sistemine ait)
+  Veri_Kontrol.setup_PID_1(); // Yaw PID
+  Veri_Kontrol.setup_PID_2(); // Pitch PID
 }
 
-// kullanma şekli
+void loop() {
+  // IMU verilerini al
+  Pitch_Aci = Veri_Kontrol.Euler_Y(); // Yukarı-aşağı yönelim
+  Yaw_Aci   = Veri_Kontrol.Euler_Z(); // Yönelme açısı
 
-void stabilizeWithPID() {
-  // IMU’dan okuma
-  float pitch = Veri_Kontrol.Euler_Y(); // Yukarı-aşağı
-  float yaw   = Veri_Kontrol.Euler_Z(); // Sağ-sol
+  Gyro_y = Veri_Kontrol.GYRO_Y();     // Pitch için gyro
+  Gyro_z = Veri_Kontrol.GYRO_Z();     // Yaw için gyro
 
-  // Setpoint (hedef açı)
-  float targetPitch = 0.0;
-  float targetYaw   = 0.0;
+  // --- PID Hesaplamaları ---
+  
+  // PITCH kontrolü
+  pid_hata_pitch = (Ref_Pitch - Pitch_Aci) * 5 - Gyro_y;
+  pid_out_pitch = Veri_Kontrol.PID_2(pid_hata_pitch, Kp_pitch, Ki_pitch, Kd_pitch, imax);
 
-  // PID çıktılarını hesapla
-  float pitchCorrection = calculatePID(targetPitch, pitch, previousPitchError, integralPitch, lastTimePitch, 3.0, 0.5, 1.0);
-  float yawCorrection   = calculatePID(targetYaw, yaw, previousYawError, integralYaw, lastTimeYaw, 2.5, 0.4, 0.8);
+  // YAW kontrolü
+  pid_hata_yaw = (Ref_Yaw - Yaw_Aci) * 5 - Gyro_z;
+  pid_out_yaw = Veri_Kontrol.PID_1(pid_hata_yaw, Kp_yaw, Ki_yaw, Kd_yaw, imax);
 
-  // PID sonucu servolara aktar (nötr açı 90 derece)
-  Veri_Kontrol.Servo_2_Write(90 + pitchCorrection); // Ön servo (pitch)
-  Veri_Kontrol.Servo_4_Write(90 - pitchCorrection); // Arka servo (pitch)
+  // --- PID Çıktılarını Servolara Uygula ---
 
-  Veri_Kontrol.Servo_3_Write(90 + yawCorrection);   // Ön servo (yaw)
-  Veri_Kontrol.Servo_5_Write(90 - yawCorrection);   // Arka servo (yaw)
+  // Pitch: Ön ve arka ters yönlü
+  Veri_Kontrol.Servo_2_Write(90 + pid_out_pitch); // Ön pitch
+  Veri_Kontrol.Servo_4_Write(90 - pid_out_pitch); // Arka pitch
+
+  // Yaw: Ön ve arka ters yönlü
+  Veri_Kontrol.Servo_3_Write(90 + pid_out_yaw);   // Ön yaw
+  Veri_Kontrol.Servo_5_Write(90 - pid_out_yaw);   // Arka yaw
+
+  // --- İsteğe bağlı: PID verilerini seri porttan izle ---
+  Serial.print("Pitch: "); Serial.print(Pitch_Aci); Serial.print(" | ");
+  Serial.print("Yaw: "); Serial.print(Yaw_Aci); Serial.print(" | ");
+  Serial.print("Out_Pitch: "); Serial.print(pid_out_pitch); Serial.print(" | ");
+  Serial.print("Out_Yaw: "); Serial.println(pid_out_yaw);
+
+  delay(10); // 100Hz kontrol döngüsü
 }
