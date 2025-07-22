@@ -386,6 +386,12 @@ void loop() {
   pid_out_yaw   = Kp_yaw   * yaw_error   + Ki_yaw   * yaw_integral   + Kd_yaw   * yaw_deriv;
   pid_out_depth = Kp_depth * depth_error + Ki_depth * depth_integral + Kd_depth * depth_deriv;
 
+  // Güvenlik limiti – servo koruması
+  pid_out_pitch = constrain(pid_out_pitch, -30, 30);
+  pid_out_yaw   = constrain(pid_out_yaw, -30, 30);
+  pid_out_depth = constrain(pid_out_depth, -15, 15);
+
+
   pitch_last_error = pitch_error;
   yaw_last_error   = yaw_error;
   depth_last_error = depth_error;
