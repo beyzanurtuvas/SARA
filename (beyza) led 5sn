@@ -1,0 +1,20 @@
+#include "Servo_Ext_ALC.h"
+
+Servo_Ext Ext_Servo_Kontrol;
+
+void setup() {
+  Serial.begin(57600);
+
+  Ext_Servo_Kontrol.begin();           // Harici servo kontrolcüyü başlat
+  Ext_Servo_Kontrol.Ext_Servo_Fr(60);  // 60Hz PWM frekansı (servo için standart)
+}
+
+void loop() {
+  // LED'i yak (tam parlaklık)
+  Ext_Servo_Kontrol.Ext_Servo(0, 1900);
+  delay(5000); // 5 saniye açık kalır
+
+  // LED'i kapat
+  Ext_Servo_Kontrol.Ext_Servo(0, 1100);
+  delay(1000); // 1 saniye kapalı kalır
+}
