@@ -181,6 +181,20 @@ void uDonusu() {
   tumServolariNotrle();
 }
 
+void manevraKarma() {
+  komut = 'b';
+  sagaDon();
+
+  komut = 'c';
+  solaDon();
+
+  komut = 'd';
+  yunuslama();
+
+  komut = ' '; // Bitince sıfırla
+}
+
+
 void setup() {
   Serial1.begin(57600);
   Veri_Kontrol.Sensor_begin();
@@ -215,6 +229,8 @@ void loop() {
   else if (komut == 'e') asagiIn();
   else if (komut == 'f') yukariCik();
   else if (komut == 'g') uDonusu();
+  else if (komut == 'h') manevraKarma();
+
   else PID_Guncelle(); // Pasif stabilite
 
   delay(10);
