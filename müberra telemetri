@@ -1,0 +1,100 @@
+#include "ALACAKART.h"
+ALACA_KART Veri_Kontrol;
+
+char komut = ' ';
+unsigned long gorevBaslaZamani = 0;
+bool gorevAktif = false;
+char aktifGorev = ' ';
+
+// PWM ters: 1490 = durma, 1000 = tam güç
+void Servo1_YavasPWM(int hedefPWM) {
+  static int mevcutPWM = 1490;
+  int adim = 5;
+  int bekleme = 10;
+
+  if (hedefPWM < mevcutPWM) {
+    while (mevcutPWM > hedefPWM) {
+      mevcutPWM -= adim;
+      if (mevcutPWM < hedefPWM) mevcutPWM = hedefPWM;
+      Veri_Kontrol.Servo_1_Write(mevcutPWM);
+      delay(bekleme);
+    }
+  } else if (hedefPWM > mevcutPWM) {
+    while (mevcutPWM < hedefPWM) {
+      mevcutPWM += adim;
+      if (mevcutPWM > hedefPWM) mevcutPWM = hedefPWM;
+      Veri_Kontrol.Servo_1_Write(mevcutPWM);
+      delay(bekleme);
+    }
+  }
+}
+
+void setup() {
+  Serial1.begin(57600);
+  Serial.begin(9600);
+  Veri_Kontrol.LED_begin();
+  Veri_Kontrol.Sensor_begin();  // IMU + basınç sensörlerini başlat
+}
+
+void loop() {
+  if (Serial1.available()) {
+    komut = Serial1.read();
+    gorevBaslaZamani = millis();
+    gorevAktif = true;
+    aktifGorev = komut;
+  }
+
+  if (gorevAktif && millis() - gorevBaslaZamani < 5000) {
+    switch (aktifGorev) {
+      case 'a':
+        Servo1_YavasPWM(1000);
+        Serial.println("GOREV A - DUZ GIT");
+        break;
+
+      case 'b':
+        Veri_Kontrol.Servo_3_Write(45);
+        Veri_Kontrol.Servo_5_Write(135);
+        Servo1_YavasPWM(1000);
+        Serial.println("GOREV B - SAGA DON");
+        break;
+
+      case 'c':
+        Veri_Kontrol.Servo_3_Write(135);
+        Veri_Kontrol.Servo_5_Write(45);
+        Servo1_YavasPWM(1000);
+        Serial.println("GOREV C - SOLA DON");
+        break;
+
+      case 'd':
+        Veri_Kontrol.Servo_2_Write(45);
+        Veri_Kontrol.Servo_4_Write(135);
+        Servo1_YavasPWM(1000);
+        Serial.println("GOREV D - ASAGI DALIS");
+        break;
+
+      case 'e':
+        Veri_Kontrol.Servo_2_Write(135);
+        Veri_Kontrol.Servo_4_Write(45);
+        Servo1_YavasPWM(1000);
+        Serial.println("GOREV E - YUKARI CIKIS");
+        break;
+    }
+  } else if (gorevAktif) {
+    Servo1_YavasPWM(1490);
+    Veri_Kontrol.Servo_2_Write(90);
+    Veri_Kontrol.Servo_3_Write(90);
+    Veri_Kontrol.Servo_4_Write(90);
+    Veri_Kontrol.Servo_5_Write(90);
+    gorevAktif = false;
+    Serial.println("GOREV TAMAMLANDI");
+  }
+
+  // TELEMETRI
+  Serial1.print("PITCH:");
+  Serial1.print(Veri_Kontrol.Euler_X()); // Pitch
+  Serial1.print(" YAW:");
+  Serial1.print(Veri_Kontrol.Euler_Z()); // Yaw
+  Serial1.print(" DERINLIK:");
+  Serial1.print(Veri_Kontrol.Alt());     // Derinlik
+  Serial1.println();
+}
