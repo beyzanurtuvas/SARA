@@ -1,3 +1,6 @@
+log ve gyro stabilizesi bunda yok aşağıdakinde var 
+
+
 #include "ALACAKART.h"
 ALACA_KART Veri_Kontrol;
 
@@ -189,3 +192,230 @@ void loop() {
 
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#include "ALACAKART.h"
+#include <SD.h>
+#include <SPI.h>
+
+ALACA_KART Veri_Kontrol;
+
+// Sensör verileri
+float Pitch_Aci, Yaw_Aci, Alt;
+float Gyro_y, Gyro_z;
+float Ref_Pitch = 0, Ref_Yaw = 0, Ref_Alt;
+
+// PID parametreleri
+float Kp_pitch = 0.8, Ki_pitch = 0.02, Kd_pitch = 0.05;
+float Kp_yaw   = 1.0, Ki_yaw   = 0.015, Kd_yaw   = 0.06;
+float Kp_depth = 1.2, Ki_depth = 0.03, Kd_depth = 0.07;
+
+float pitch_error, yaw_error, depth_error;
+float pitch_integral = 0, yaw_integral = 0, depth_integral = 0;
+float pitch_last_error = 0, yaw_last_error = 0, depth_last_error = 0;
+float pid_out_pitch, pid_out_yaw, pid_out_depth;
+float imax = 10;
+
+// Görev kontrol
+int gorev_durumu = -1;
+unsigned long gorev_baslangic = 0;
+unsigned long prevTime = 0;
+
+// SD kart
+File logFile;
+const int SD_CS = B5;
+
+// Buton pini
+const int BUTON_PIN = B0;
+
+// Motor komutu
+int motor_pwm = 1490;
+
+void setup() {
+  Serial.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+
+  // Tüm servo ve motor başlat
+  Veri_Kontrol.Servo_1_begin(); // İtici motor
+  Veri_Kontrol.Servo_2_begin(); // Pitch
+  Veri_Kontrol.Servo_3_begin(); // Yaw
+  Veri_Kontrol.Servo_4_begin(); // Pitch simetrik
+  Veri_Kontrol.Servo_5_begin(); // Yaw simetrik
+  Veri_Kontrol.Motor_1_begin(); // Yedek
+  Veri_Kontrol.Led_1_begin();
+
+  pinMode(BUTON_PIN, INPUT_PULLUP); // Buton başlatma
+
+  // SD kart başlat
+  if (!SD.begin(SD_CS)) {
+    Serial.println("SD KART HATASI!");
+    while (1);
+  }
+
+  logFile = SD.open("pidlog.csv", FILE_WRITE);
+  if (logFile) {
+    logFile.println("Time,Gorev,Pitch,Yaw,Alt,P_err,Y_err,D_err,P_out,Y_out,D_out,Motor");
+    logFile.close();
+  }
+}
+
+void loop() {
+  unsigned long now = millis();
+  float dt = (now - prevTime) / 1000.0;
+  if (dt < 0.02) return;
+  prevTime = now;
+
+  if (gorev_durumu == -1) {
+    if (digitalRead(BUTON_PIN) == LOW) {
+      gorev_baslangic = now;
+      Ref_Alt = Veri_Kontrol.Altitude();
+      gorev_durumu = 0;
+    }
+    return;
+  }
+
+  // --- Sensör okuma
+  Pitch_Aci = Veri_Kontrol.Euler_Y();
+  Yaw_Aci   = Veri_Kontrol.Euler_Z();
+  Alt       = Veri_Kontrol.Altitude();
+  Gyro_y    = Veri_Kontrol.GYRO_Y();
+  Gyro_z    = Veri_Kontrol.GYRO_Z();
+
+  // --- Görev Durumu
+  switch (gorev_durumu) {
+    case 0: // 7 sn bekleme
+      motor_pwm = 1490;
+      if (now - gorev_baslangic > 7000) {
+        Ref_Alt += 1.0;
+        gorev_durumu = 1;
+        gorev_baslangic = now;
+      }
+      break;
+
+    case 1: // 1 metre dalış
+      motor_pwm = 1800;
+      if (Alt > Ref_Alt - 0.05 && abs(Gyro_y) < 1.0) {
+        gorev_durumu = 2;
+        gorev_baslangic = now;
+      }
+      break;
+
+    case 2: // 5 sn düz git
+      motor_pwm = 1800;
+      if (now - gorev_baslangic > 5000) {
+        Ref_Yaw += 90;
+        gorev_durumu = 3;
+        gorev_baslangic = now;
+      }
+      break;
+
+    case 3: // 90° sağa dön
+      motor_pwm = 1600;
+      if (abs(Yaw_Aci - Ref_Yaw) < 5 && abs(Gyro_z) < 1.0) {
+        gorev_durumu = 4;
+        gorev_baslangic = now;
+      }
+      break;
+
+    case 4: // 5 sn düz git
+      motor_pwm = 1800;
+      if (now - gorev_baslangic > 5000) {
+        Ref_Yaw -= 90;
+        gorev_durumu = 5;
+        gorev_baslangic = now;
+      }
+      break;
+
+    case 5: // 90° sola dön
+      motor_pwm = 1600;
+      if (abs(Yaw_Aci - Ref_Yaw) < 5 && abs(Gyro_z) < 1.0) {
+        gorev_durumu = 6;
+        gorev_baslangic = now;
+      }
+      break;
+
+    case 6: // 5 sn düz git
+      motor_pwm = 1800;
+      if (now - gorev_baslangic > 5000) {
+        Ref_Alt -= 0.2;
+        gorev_durumu = 7;
+        gorev_baslangic = now;
+      }
+      break;
+
+    case 7: // 1 dk düz git (rastgele yerine)
+      motor_pwm = 1800;
+      if (now - gorev_baslangic > 60000) {
+        Ref_Alt = 0.0;
+        gorev_durumu = 8;
+        gorev_baslangic = now;
+      }
+      break;
+
+    case 8: // Yüzeye çıkış
+      motor_pwm = 1490;
+      if (Alt < 0.2 && abs(Gyro_y) < 1.0) {
+        Veri_Kontrol.Led_1_Write(true);
+        motor_pwm = 1490;
+        gorev_durumu = 9;
+      }
+      break;
+
+    case 9: // Sistem durdu
+      motor_pwm = 1490;
+      return;
+  }
+
+  // --- PID hesap
+  pitch_error = (Ref_Pitch - Pitch_Aci) * 5 - Gyro_y;
+  yaw_error   = (Ref_Yaw - Yaw_Aci) * 5 - Gyro_z;
+  depth_error = (Ref_Alt - Alt) * 10;
+
+  pitch_integral += pitch_error * dt;
+  yaw_integral   += yaw_error * dt;
+  depth_integral += depth_error * dt;
+
+  pitch_integral = constrain(pitch_integral, -imax, imax);
+  yaw_integral   = constrain(yaw_integral, -imax, imax);
+  depth_integral = constrain(depth_integral, -imax, imax);
+
+  float pitch_deriv = (pitch_error - pitch_last_error) / dt;
+  float yaw_deriv   = (yaw_error - yaw_last_error) / dt;
+  float depth_deriv = (depth_error - depth_last_error) / dt;
+
+  pid_out_pitch = Kp_pitch * pitch_error + Ki_pitch * pitch_integral + Kd_pitch * pitch_deriv;
+  pid_out_yaw   = Kp_yaw   * yaw_error   + Ki_yaw   * yaw_integral   + Kd_yaw   * yaw_deriv;
+  pid_out_depth = Kp_depth * depth_error + Ki_depth * depth_integral + Kd_depth * depth_deriv;
+
+  pitch_last_error = pitch_error;
+  yaw_last_error   = yaw_error;
+  depth_last_error = depth_error;
+
+  // --- Servo çıkışları
+  Veri_Kontrol.Servo_2_Write(90 + pid_out_pitch);
+  Veri_Kontrol.Servo_4_Write(90 - pid_out_pitch);
+  Veri_Kontrol.Servo_3_Write(90 + pid_out_yaw);
+  Veri_Kontrol.Servo_5_Write(90 - pid_out_yaw);
+
+  // --- Servo_1 = İtici motor
+  Veri_Kontrol.Servo_1_Write(motor_pwm);
+
+  // --- SD Loglama
+  logFile = SD.open("pidlog.csv", FILE_WRITE);
+  if (logFile) {
+    logFile.print(now); logFile.print(",");
+    logFile.print(gorev_durumu); logFile.print(",");
+    logFile.print(Pitch_Aci); logFile.print(",");
+    logFile.print(Yaw_Aci); logFile.print(",");
+    logFile.print(Alt); logFile.print(",");
+    logFile.print(pitch_error); logFile.print(",");
+    logFile.print(yaw_error); logFile.print(",");
+    logFile.print(depth_error); logFile.print(",");
+    logFile.print(pid_out_pitch); logFile.print(",");
+    logFile.print(pid_out_yaw); logFile.print(",");
+    logFile.print(pid_out_depth); logFile.print(",");
+    logFile.println(motor_pwm);
+    logFile.close();
+  }
+}
+
+
