@@ -1,0 +1,126 @@
+#include "ALACAKART.h"
+#include <SPI.h>
+#include <SD.h>
+
+ALACA_KART Veri_Kontrol;
+File Veri;
+
+// Sabitler
+const int CS_SD = PA4;
+const int SERVO_NEUTRAL = 90;       // Duz konum
+const int SERVO_LEFT = 45;          // Saga donuste on servo sola, arka servo saga
+const int SERVO_RIGHT = 135;        // Sola donuste on servo saga, arka servo sola
+const int MOTOR_RUN_PWM = 1000;     // Maksimum hiz
+const int MOTOR_STOP_PWM = 1490;    // ESC arming ve durdurma PWM
+const int MOTOR_LOW_PWM = 1200;     // Hafif calisma
+
+// Motor PWM’ini kademeli artir
+void motorYavasArtir(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm <= hedefPWM; pwm += 2) {
+    Veri_Kontrol.Servo_1(pwm); // ESC sinyali gonder
+    delay(10);
+  }
+}
+
+// Motor PWM’ini kademeli azalt
+void motorYavasAzalt(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm >= hedefPWM; pwm -= 2) {
+    Veri_Kontrol.Servo_1(pwm); // ESC sinyali gonder
+    delay(10);
+  }
+}
+
+void setup() {
+  Serial.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+
+  // Servo pinleri baslatiliyor
+  Veri_Kontrol.Servo_1_begin();
+  Veri_Kontrol.Servo_2_begin();
+  Veri_Kontrol.Servo_3_begin();
+  Veri_Kontrol.Servo_4_begin();
+  Veri_Kontrol.Servo_5_begin();
+
+  // SD Kart baslatiliyor
+  SPI.begin();
+  if (SD.begin(CS_SD)) {
+    Veri = SD.open("Veriler.txt", FILE_WRITE);
+    if (Veri) Veri.println("Zaman");
+  }
+}
+
+void loop() {
+  for (int i = 0; i < 3; i++) {
+    // 0-10 sn: Bekleme
+    Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
+    delay(10000);
+
+    // 10-12 sn: Motor yavas calisir
+    motorYavasArtir(MOTOR_STOP_PWM, MOTOR_RUN_PWM);
+
+    // 12-14 sn: 2 saniye duz git
+    Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+    tumServolariNotrle();
+    delay(2000);
+
+    // 14-15 sn: Yavas yavas dur
+    motorYavasAzalt(MOTOR_RUN_PWM, MOTOR_STOP_PWM);
+
+    // 15-16 sn: Saga donmeye hazirlan
+    motorYavasArtir(MOTOR_STOP_PWM, MOTOR_RUN_PWM);
+
+    // 16-21 sn: 5 saniye saga don
+    Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+    Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
+    Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+    delay(5000);
+
+    // 21-22 sn: Durdur
+    motorYavasAzalt(MOTOR_RUN_PWM, MOTOR_STOP_PWM);
+
+    // 22-23 sn: Sola donmeye hazirlan
+    motorYavasArtir(MOTOR_STOP_PWM, MOTOR_RUN_PWM);
+
+    // 23-28 sn: 5 saniye sola don
+    Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+    Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
+    Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+    delay(5000);
+
+    // 28-29 sn: Durdur
+    motorYavasAzalt(MOTOR_RUN_PWM, MOTOR_STOP_PWM);
+
+    // 29-30 sn: Yunuslama oncesi motoru tekrar calistir
+    motorYavasArtir(MOTOR_STOP_PWM, MOTOR_RUN_PWM);
+
+    // 30-32 sn: Asagi eg (pitch kontrol)
+    Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+    Veri_Kontrol.Servo_2_Write(SERVO_RIGHT);
+    Veri_Kontrol.Servo_4_Write(SERVO_LEFT);
+    delay(2000);
+
+    // 32-34 sn: Duzles
+    tumServolariNotrle();
+    delay(2000);
+
+    // 34-36 sn: Yukari eg
+    Veri_Kontrol.Servo_2_Write(SERVO_LEFT);
+    Veri_Kontrol.Servo_4_Write(SERVO_RIGHT);
+    delay(2000);
+
+    // 36+: Sistem durdurulur
+    motorYavasAzalt(MOTOR_RUN_PWM, MOTOR_STOP_PWM);
+    tumServolariNotrle();
+  }
+
+  if (Veri) Veri.close();
+  Serial.println(">>> 3 döngü başarıyla tamamlandı.");
+  while (true); // Sonsuz duraklatma
+}
+
+void tumServolariNotrle() {
+  Veri_Kontrol.Servo_2_Write(SERVO_NEUTRAL);
+  Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
+  Veri_Kontrol.Servo_4_Write(SERVO_NEUTRAL);
+  Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+}
