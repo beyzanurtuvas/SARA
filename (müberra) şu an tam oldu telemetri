@@ -2,7 +2,7 @@
 
 ALACA_KART Veri_Kontrol;
 
-const int MOTOR_MAX_PWM  = 1000;
+const int MOTOR_MAX_PWM  = 1100;
 const int MOTOR_STOP_PWM = 1490;
 const int MOTOR_DONUS_PWM = 1250;
 
