@@ -1,0 +1,163 @@
+#include "ALACAKART.h"
+
+ALACA_KART Veri_Kontrol;
+
+const int MOTOR_MAX_PWM   = 1000;
+const int MOTOR_STOP_PWM  = 1490;
+const int MOTOR_DONUS_PWM = 1200;
+
+const int SERVO_NEUTRAL = 90;
+const int SERVO_RIGHT   = 45;
+const int SERVO_LEFT    = 135;
+
+char komut = ' ';
+
+void motorYavasArtir(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm >= hedefPWM; pwm -= 1) {
+    Veri_Kontrol.Servo_1_Write(pwm);
+    delay(5);
+  }
+}
+
+void motorYavasAzalt(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm <= hedefPWM; pwm += 1) {
+    Veri_Kontrol.Servo_1_Write(pwm);
+    delay(5);
+  }
+}
+
+void tumServolariNotrle() {
+  Veri_Kontrol.Servo_2_Write(SERVO_NEUTRAL);
+  Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
+  Veri_Kontrol.Servo_4_Write(SERVO_NEUTRAL);
+  Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+}
+
+void git() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  while (komut == 'a') {
+    delay(10);
+    if (Serial1.available()) komut = Serial1.read();
+  }
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+}
+
+void sagaDon() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_DONUS_PWM);
+  while (komut == 'b') {
+    Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
+    Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+    if (Serial1.available()) komut = Serial1.read();
+    delay(10);
+  }
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  tumServolariNotrle();
+}
+
+void solaDon() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_DONUS_PWM);
+  while (komut == 'c') {
+    Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
+    Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+    if (Serial1.available()) komut = Serial1.read();
+    delay(10);
+  }
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  tumServolariNotrle();
+}
+
+void yunuslama() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  while (komut == 'd') {
+    Veri_Kontrol.Servo_2_Write(SERVO_LEFT);
+    Veri_Kontrol.Servo_4_Write(SERVO_RIGHT);
+    delay(1000);
+
+    Veri_Kontrol.Servo_2_Write(SERVO_NEUTRAL);
+    Veri_Kontrol.Servo_4_Write(SERVO_NEUTRAL);
+    delay(1000);
+
+    Veri_Kontrol.Servo_2_Write(SERVO_RIGHT);
+    Veri_Kontrol.Servo_4_Write(SERVO_LEFT);
+    delay(1000);
+
+    if (Serial1.available()) komut = Serial1.read();
+  }
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+void asagiIn() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  while (komut == 'e') {
+    Veri_Kontrol.Servo_2_Write(SERVO_LEFT);
+    Veri_Kontrol.Servo_4_Write(SERVO_RIGHT);
+    if (Serial1.available()) komut = Serial1.read();
+    delay(10);
+  }
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+void yukariCik() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  while (komut == 'f') {
+    Veri_Kontrol.Servo_2_Write(SERVO_RIGHT);
+    Veri_Kontrol.Servo_4_Write(SERVO_LEFT);
+    if (Serial1.available()) komut = Serial1.read();
+    delay(10);
+  }
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+void uDonusu() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  while (komut == 'g') {
+    Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
+    Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+    delay(2500);
+    Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
+    Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+    delay(2500);
+    if (Serial1.available()) komut = Serial1.read();
+  }
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+void manevraKarma() {
+  komut = 'b'; sagaDon();
+  komut = 'c'; solaDon();
+  komut = 'd'; yunuslama();
+  komut = ' '; // Reset
+}
+
+void setup() {
+  Serial1.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+
+  Veri_Kontrol.Servo_1_begin();
+  Veri_Kontrol.Servo_2_begin();
+  Veri_Kontrol.Servo_3_begin();
+  Veri_Kontrol.Servo_4_begin();
+  Veri_Kontrol.Servo_5_begin();
+
+  tumServolariNotrle();
+  Veri_Kontrol.Servo_1_Write(MOTOR_STOP_PWM);
+}
+
+void loop() {
+  if (Serial1.available()) komut = Serial1.read();
+
+  if (komut == 'a') git();
+  else if (komut == 'b') sagaDon();
+  else if (komut == 'c') solaDon();
+  else if (komut == 'd') yunuslama();
+  else if (komut == 'e') asagiIn();
+  else if (komut == 'f') yukariCik();
+  else if (komut == 'g') uDonusu();
+  else if (komut == 'h') manevraKarma();
+
+  delay(10);
+}
