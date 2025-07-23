@@ -1,0 +1,171 @@
+#include "ALACAKART.h"
+
+ALACA_KART Veri_Kontrol;
+
+// PWM tanımları
+const int PWM_STOP  = 1490;
+const int PWM_RUN   = 1000;
+const int PWM_TURN  = 1250;
+
+// Servo açıları
+const int SERVO_RIGHT   = 120;
+const int SERVO_LEFT    = 60;
+const int SERVO_NEUTRAL = 90;
+
+char komut = ' ';
+
+// PWM geçişleri
+void pwmYavasAzalt(int from, int to, int gecikme = 5) {
+  for (int pwm = from; pwm >= to; pwm--) {
+    Veri_Kontrol.Servo_1(pwm);
+    delay(gecikme);
+  }
+}
+
+void pwmYavasArtir(int from, int to, int gecikme = 5) {
+  for (int pwm = from; pwm <= to; pwm++) {
+    Veri_Kontrol.Servo_1(pwm);
+    delay(gecikme);
+  }
+}
+
+void motorDur() {
+  Veri_Kontrol.Servo_1(PWM_STOP);
+}
+
+void tumServolariNotrle() {
+  Veri_Kontrol.Servo_2_Write(SERVO_NEUTRAL);
+  Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
+  Veri_Kontrol.Servo_4_Write(SERVO_NEUTRAL);
+  Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+}
+
+void ileriGit(int sure) {
+  pwmYavasAzalt(PWM_STOP, PWM_RUN);
+  tumServolariNotrle();
+  delay(sure);
+  pwmYavasArtir(PWM_RUN, PWM_STOP);
+}
+
+void donSag() {
+  Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
+  Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+}
+
+void donSol() {
+  Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
+  Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+}
+
+void yukariGit(int sure) {
+  Veri_Kontrol.Servo_2_Write(SERVO_LEFT);
+  Veri_Kontrol.Servo_4_Write(SERVO_RIGHT);
+  delay(sure);
+  tumServolariNotrle();
+}
+
+void asagiGit(int sure) {
+  Veri_Kontrol.Servo_2_Write(SERVO_RIGHT);
+  Veri_Kontrol.Servo_4_Write(SERVO_LEFT);
+  delay(sure);
+  tumServolariNotrle();
+}
+
+void setup() {
+  Serial1.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+  Veri_Kontrol.Servo_1_begin();
+  Veri_Kontrol.Servo_2_begin();
+  Veri_Kontrol.Servo_3_begin();
+  Veri_Kontrol.Servo_4_begin();
+  Veri_Kontrol.Servo_5_begin();
+
+  motorDur();
+  tumServolariNotrle();
+}
+
+void loop() {
+  if (Serial1.available()) {
+    komut = Serial1.read();
+
+    switch (komut) {
+      case 'a': // 5sn düz
+        ileriGit(5000);
+        break;
+
+      case 'b': // 3sn düz + sol dön + 5sn düz
+        pwmYavasAzalt(PWM_STOP, PWM_TURN);
+        tumServolariNotrle();
+        delay(3000);
+        donSol();
+        delay(1000);
+        pwmYavasAzalt(PWM_TURN, PWM_RUN);
+        tumServolariNotrle();
+        delay(5000);
+        pwmYavasArtir(PWM_RUN, PWM_STOP);
+        break;
+
+      case 'c': // 3sn düz + sağ dön + 5sn düz
+        pwmYavasAzalt(PWM_STOP, PWM_TURN);
+        tumServolariNotrle();
+        delay(3000);
+        donSag();
+        delay(1000);
+        pwmYavasAzalt(PWM_TURN, PWM_RUN);
+        tumServolariNotrle();
+        delay(5000);
+        pwmYavasArtir(PWM_RUN, PWM_STOP);
+        break;
+
+      case 'd': // 5sn aşağı + 3sn düz geri + 7sn yukarı
+        pwmYavasAzalt(PWM_STOP, PWM_RUN);
+        asagiGit(5000);
+        delay(3000);
+        yukariGit(7000);
+        pwmYavasArtir(PWM_RUN, PWM_STOP);
+        break;
+
+      case 'e': // 3sn düz + 5sn aşağı
+        pwmYavasAzalt(PWM_STOP, PWM_RUN);
+        delay(3000);
+        asagiGit(5000);
+        pwmYavasArtir(PWM_RUN, PWM_STOP);
+        break;
+
+      case 'f': // 3sn düz + 5sn yukarı
+        pwmYavasAzalt(PWM_STOP, PWM_RUN);
+        delay(3000);
+        yukariGit(5000);
+        pwmYavasArtir(PWM_RUN, PWM_STOP);
+        break;
+
+      case 'g': // 5sn düz + u dönüşü + 5sn düz
+        pwmYavasAzalt(PWM_STOP, PWM_RUN);
+        delay(5000);
+        donSag(); delay(2000);
+        donSol(); delay(2000);
+        tumServolariNotrle();
+        delay(5000);
+        pwmYavasArtir(PWM_RUN, PWM_STOP);
+        break;
+
+      case 'h': // düz → sağ → düz → sol → düz → yukarı
+        pwmYavasAzalt(PWM_STOP, PWM_RUN);
+        delay(5000);
+        donSag(); delay(1000);
+        tumServolariNotrle();
+        delay(5000);
+        donSol(); delay(1000);
+        tumServolariNotrle();
+        delay(5000);
+        yukariGit(5000);
+        pwmYavasArtir(PWM_RUN, PWM_STOP);
+        break;
+    }
+
+    motorDur();
+    tumServolariNotrle();
+  }
+
+  delay(10);
+}
