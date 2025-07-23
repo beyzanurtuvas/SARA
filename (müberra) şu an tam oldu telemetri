@@ -169,3 +169,200 @@ void loop() {
 
   delay(10);
 }
+
+
+-------------------------------------------------------------------------------------------------------------------------
+
+#include "ALACAKART.h"
+
+ALACA_KART Veri_Kontrol;
+
+const int MOTOR_MAX = 1000;      // En hızlı
+const int MOTOR_MIN = 1490;      // Dur
+const int MOTOR_DONUS = 1250;    // Dönüş için yavaş
+const int PWM_STEP_DELAY = 5;    // Yumuşak geçiş için gecikme
+
+const int SERVO_RIGHT = 45;
+const int SERVO_LEFT = 135;
+const int SERVO_NEUTRAL = 90;
+
+char komut = ' ';
+
+// PWM yavaş arttır
+void motorYavasArtir(int baslangic, int hedef) {
+  for (int pwm = baslangic; pwm >= hedef; pwm--) {
+    Veri_Kontrol.Servo_1_Write(pwm);
+    delay(PWM_STEP_DELAY);
+  }
+}
+
+// PWM yavaş azalt
+void motorYavasAzalt(int baslangic, int hedef) {
+  for (int pwm = baslangic; pwm <= hedef; pwm++) {
+    Veri_Kontrol.Servo_1_Write(pwm);
+    delay(PWM_STEP_DELAY);
+  }
+}
+
+// Servoları nötrle
+void tumServolariNotrle() {
+  Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
+  Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+}
+
+// Görev A: 5sn düz git
+void gorevA() {
+  motorYavasArtir(MOTOR_MIN, MOTOR_MAX);
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX, MOTOR_MIN);
+}
+
+// Görev B: 3sn düz, sola dön, 5sn düz
+void gorevB() {
+  motorYavasArtir(MOTOR_MIN, MOTOR_MAX);
+  delay(3000);
+
+  motorYavasAzalt(MOTOR_MAX, MOTOR_DONUS);
+  Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
+  Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+  delay(1000); // dönüş süresi
+  tumServolariNotrle();
+
+  motorYavasArtir(MOTOR_DONUS, MOTOR_MAX);
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX, MOTOR_MIN);
+}
+
+// Görev C: B'nin sağ versiyonu
+void gorevC() {
+  motorYavasArtir(MOTOR_MIN, MOTOR_MAX);
+  delay(3000);
+
+  motorYavasAzalt(MOTOR_MAX, MOTOR_DONUS);
+  Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
+  Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+  delay(1000);
+  tumServolariNotrle();
+
+  motorYavasArtir(MOTOR_DONUS, MOTOR_MAX);
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX, MOTOR_MIN);
+}
+
+// Görev D: 5sn aşağı, 3sn düz, 7sn yukarı
+void gorevD() {
+  Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
+  Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+  motorYavasArtir(MOTOR_MIN, MOTOR_MAX);
+  delay(5000);
+
+  tumServolariNotrle();
+  delay(3000);
+
+  Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
+  Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+  delay(7000);
+  motorYavasAzalt(MOTOR_MAX, MOTOR_MIN);
+  tumServolariNotrle();
+}
+
+// Görev E: 3sn düz, 5sn aşağı
+void gorevE() {
+  motorYavasArtir(MOTOR_MIN, MOTOR_MAX);
+  delay(3000);
+
+  Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
+  Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX, MOTOR_MIN);
+  tumServolariNotrle();
+}
+
+// Görev F: E'nin yukarı versiyonu
+void gorevF() {
+  motorYavasArtir(MOTOR_MIN, MOTOR_MAX);
+  delay(3000);
+
+  Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
+  Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX, MOTOR_MIN);
+  tumServolariNotrle();
+}
+
+// Görev G: 5sn düz, u dönüşü, 5sn düz
+void gorevG() {
+  motorYavasArtir(MOTOR_MIN, MOTOR_MAX);
+  delay(5000);
+
+  motorYavasAzalt(MOTOR_MAX, MOTOR_DONUS);
+  Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
+  Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+  delay(2000); // u dönüşü
+  tumServolariNotrle();
+
+  motorYavasArtir(MOTOR_DONUS, MOTOR_MAX);
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX, MOTOR_MIN);
+}
+
+// Görev H: düz → sağ → düz → sol → düz → yukarı
+void gorevH() {
+  motorYavasArtir(MOTOR_MIN, MOTOR_MAX);
+  delay(5000);
+
+  motorYavasAzalt(MOTOR_MAX, MOTOR_DONUS);
+  Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
+  Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+  delay(1000);
+  tumServolariNotrle();
+
+  motorYavasArtir(MOTOR_DONUS, MOTOR_MAX);
+  delay(5000);
+
+  motorYavasAzalt(MOTOR_MAX, MOTOR_DONUS);
+  Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
+  Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+  delay(1000);
+  tumServolariNotrle();
+
+  motorYavasArtir(MOTOR_DONUS, MOTOR_MAX);
+  delay(5000);
+
+  Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
+  Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+  delay(3000);
+  motorYavasAzalt(MOTOR_MAX, MOTOR_MIN);
+  tumServolariNotrle();
+}
+
+// Kurulum
+void setup() {
+  Serial1.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+
+  Veri_Kontrol.Servo_1_begin();
+  Veri_Kontrol.Servo_3_begin();
+  Veri_Kontrol.Servo_5_begin();
+
+  Veri_Kontrol.Servo_1_Write(MOTOR_MIN);
+  tumServolariNotrle();
+}
+
+// Döngü
+void loop() {
+  if (Serial1.available()) {
+    komut = Serial1.read();
+  }
+
+  if (komut == 'a') { gorevA(); komut = ' '; }
+  else if (komut == 'b') { gorevB(); komut = ' '; }
+  else if (komut == 'c') { gorevC(); komut = ' '; }
+  else if (komut == 'd') { gorevD(); komut = ' '; }
+  else if (komut == 'e') { gorevE(); komut = ' '; }
+  else if (komut == 'f') { gorevF(); komut = ' '; }
+  else if (komut == 'g') { gorevG(); komut = ' '; }
+  else if (komut == 'h') { gorevH(); komut = ' '; }
+
+  delay(10);
+}
