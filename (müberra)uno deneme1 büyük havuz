@@ -1,0 +1,159 @@
+#include <Servo.h>
+
+// Servo nesneleri
+Servo servo1; // ESC (itici motor)
+Servo servo2; // pitch kontrol (aşağı-yukarı)
+Servo servo3; // yaw kontrol (sağ)
+Servo servo4; // pitch kontrol (aşağı-yukarı - ters)
+Servo servo5; // yaw kontrol (sol)
+
+// LED pin
+const int ledPin = 13;
+
+// Görev zamanları (ms)
+const unsigned long BEKLEME_SURESI       = 7000;
+const unsigned long DALIS_SURESI         = 3000;
+const unsigned long DUZ_GITME_1          = 5000;
+const unsigned long SAGA_DONUS           = 3000;
+const unsigned long DUZ_GITME_2          = 5000;
+const unsigned long SOLA_DONUS           = 3000;
+const unsigned long DUZ_GITME_3          = 5000;
+const unsigned long YUKARI_CIKIS         = 3000;
+const unsigned long RASTGELE_MANEVRA     = 60000;
+
+void setup() {
+  // Servo pinleri
+  servo1.attach(3);  // ESC (itici)
+  servo2.attach(5);  // aşağı/yukarı
+  servo3.attach(6);  // sağ/sol
+  servo4.attach(9);  // ters aşağı/yukarı
+  servo5.attach(10); // ters sağ/sol
+
+  // LED
+  pinMode(ledPin, OUTPUT);
+
+  // Başlangıç konumu - nötr
+  servo1.writeMicroseconds(1000);  // ESC min
+  servo2.write(90);
+  servo3.write(90);
+  servo4.write(90);
+  servo5.write(90);
+
+  delay(1000); // Stabilize bekleme
+
+  // Başlıyoruz 🚀
+  bekleVeBasla();
+}
+
+void loop() {
+  // 1. Dalış
+  dalisYap();
+
+  // 2. 5 sn düz git
+  ileriGit(DUZ_GITME_1);
+
+  // 3. Sağa 90° dönüş
+  sagaDon();
+
+  // 4. 5 sn düz git
+  ileriGit(DUZ_GITME_2);
+
+  // 5. Sola 90° dönüş
+  solaDon();
+
+  // 6. 5 sn düz git
+  ileriGit(DUZ_GITME_3);
+
+  // 7. 20 cm yukarı çıkma (zamanla simülasyon)
+  yukariCik();
+
+  // 8. Rastgele manevra
+  rastgeleManevra();
+
+  // 9. Yüzeye çıkış → LED → sistem durdur
+  yuzeyeCik();
+  while (true); // sistem burada durur
+}
+
+// Görev fonksiyonları
+
+void bekleVeBasla() {
+  delay(BEKLEME_SURESI);
+}
+
+void dalisYap() {
+  servo2.write(60); // pitch aşağı
+  servo4.write(120);
+  motorCalistir();
+  delay(DALIS_SURESI);
+  servolariNol();
+}
+
+void ileriGit(unsigned long sure) {
+  motorCalistir();
+  delay(sure);
+  motorDur();
+}
+
+void sagaDon() {
+  servo3.write(60);  // sağa dönüş
+  servo5.write(120); // zıt
+  motorYavasCalistir();
+  delay(SAGA_DONUS);
+  servolariNol();
+}
+
+void solaDon() {
+  servo3.write(120); // sola dönüş
+  servo5.write(60);  // zıt
+  motorYavasCalistir();
+  delay(SOLA_DONUS);
+  servolariNol();
+}
+
+void yukariCik() {
+  servo2.write(120); // pitch yukarı
+  servo4.write(60);
+  motorCalistir();
+  delay(YUKARI_CIKIS);
+  servolariNol();
+}
+
+void rastgeleManevra() {
+  unsigned long basla = millis();
+  while (millis() - basla < RASTGELE_MANEVRA) {
+    servo2.write(random(70, 110));
+    servo4.write(180 - servo2.read());
+    servo3.write(random(70, 110));
+    servo5.write(180 - servo3.read());
+    motorCalistir();
+    delay(800);
+  }
+  servolariNol();
+}
+
+void yuzeyeCik() {
+  motorDur();
+  digitalWrite(ledPin, HIGH);
+}
+
+// Yardımcılar
+
+void motorCalistir() {
+  servo1.writeMicroseconds(1400); // orta hız
+}
+
+void motorYavasCalistir() {
+  servo1.writeMicroseconds(1300); // düşük hız
+}
+
+void motorDur() {
+  servo1.writeMicroseconds(1000); // ESC dur
+}
+
+void servolariNol() {
+  servo2.write(90);
+  servo3.write(90);
+  servo4.write(90);
+  servo5.write(90);
+}
