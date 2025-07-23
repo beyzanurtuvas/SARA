@@ -1,0 +1,215 @@
+#include <Servo.h>
+#include <SD.h>
+#include <SPI.h>
+#include <SoftwareSerial.h>
+
+// Servo nesneleri
+Servo servo1, servo2, servo3, servo4, servo5;
+
+// Telemetri
+SoftwareSerial Telemetri(8, 7); // RX, TX
+
+// SD kart
+File Veri;
+
+// PID değişkenleri
+float Ref_Pitch = 0, Ref_Yaw = 0;
+float pid_hata_pitch = 0, pid_out_pitch = 0;
+float pid_hata_yaw   = 0, pid_out_yaw   = 0;
+float Kp_pitch = 0.1, Ki_pitch = 0.0, Kd_pitch = 0.005;
+float Kp_yaw   = 0.1, Ki_yaw   = 0.0, Kd_yaw   = 0.005;
+float imax = 10;
+
+// Geçici sensör verileri (çünkü UNO'da IMU yok)
+float Pitch_Aci = 0, Yaw_Aci = 0;
+float Gyro_y = 0, Gyro_z = 0;
+
+char komut = ' ';
+const int MOTOR_MAX_PWM = 1000;
+const int MOTOR_STOP_PWM = 1490;
+
+void setup() {
+  Telemetri.begin(57600);
+  Serial.begin(9600);
+
+  // Servoları başlat
+  servo1.attach(3);   // ESC
+  servo2.attach(5);   // Pitch
+  servo3.attach(6);   // Yaw
+  servo4.attach(9);   // Pitch zıt
+  servo5.attach(A0);  // Yaw zıt (A0 artık dijital pin gibi)
+
+  tumServolariNotrle();
+
+  // SD kart başlat
+  if (!SD.begin(10)) {
+    Telemetri.println("SD kart başlatılamadı!");
+  } else {
+    Veri = SD.open("log.csv", FILE_WRITE);
+    if (Veri) {
+      Veri.println("Time,Pitch,Yaw,PID_Pitch,PID_Yaw");
+    }
+  }
+}
+
+void loop() {
+  if (Telemetri.available()) {
+    komut = Telemetri.read();
+  }
+
+  if (komut == 'a') git();
+  else if (komut == 'b') sagaDon();
+  else if (komut == 'c') solaDon();
+  else if (komut == 'd') yunuslama();
+  else if (komut == 'e') asagiIn();
+  else if (komut == 'f') yukariCik();
+  else if (komut == 'g') uDonusu();
+  else if (komut == 'h') manevraKarma();
+
+  else PID_Guncelle();
+
+  delay(10);
+}
+
+void PID_Guncelle() {
+  // Gerçek sistemde buraya IMU verileri gelecek
+  Pitch_Aci = 0;
+  Yaw_Aci = 0;
+  Gyro_y = 0;
+  Gyro_z = 0;
+
+  pid_hata_pitch = (Ref_Pitch - Pitch_Aci) * 5 - Gyro_y;
+  pid_out_pitch = pid_hata_pitch * Kp_pitch; // Basit PID
+
+  pid_hata_yaw = (Ref_Yaw - Yaw_Aci) * 5 - Gyro_z;
+  pid_out_yaw = pid_hata_yaw * Kp_yaw;
+
+  servo2.write(90 + pid_out_pitch);
+  servo4.write(90 - pid_out_pitch);
+  servo3.write(90 + pid_out_yaw);
+  servo5.write(90 - pid_out_yaw);
+
+  if (Veri) {
+    Veri.print(millis()); Veri.print(",");
+    Veri.print(Pitch_Aci); Veri.print(",");
+    Veri.print(Yaw_Aci); Veri.print(",");
+    Veri.print(pid_out_pitch); Veri.print(",");
+    Veri.print(pid_out_yaw); Veri.println();
+  }
+}
+
+void motorYavasArtir(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm >= hedefPWM; pwm -= 2) {
+    servo1.writeMicroseconds(pwm);
+    delay(10);
+  }
+}
+
+void motorYavasAzalt(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm <= hedefPWM; pwm += 2) {
+    servo1.writeMicroseconds(pwm);
+    delay(10);
+  }
+}
+
+void tumServolariNotrle() {
+  servo2.write(90);
+  servo3.write(90);
+  servo4.write(90);
+  servo5.write(90);
+}
+
+void git() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  while (komut == 'a') {
+    PID_Guncelle();
+    delay(10);
+    if (Telemetri.available()) komut = Telemetri.read();
+  }
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+void sagaDon() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  while (komut == 'b') {
+    servo3.write(45);
+    servo5.write(135);
+    PID_Guncelle();
+    delay(10);
+    if (Telemetri.available()) komut = Telemetri.read();
+  }
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+void solaDon() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  while (komut == 'c') {
+    servo3.write(135);
+    servo5.write(45);
+    PID_Guncelle();
+    delay(10);
+    if (Telemetri.available()) komut = Telemetri.read();
+  }
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+void yunuslama() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  while (komut == 'd') {
+    servo2.write(135);
+    servo4.write(45);
+    PID_Guncelle();
+    delay(5000);
+    servo2.write(90);
+    servo4.write(90);
+    PID_Guncelle();
+    delay(3000);
+    servo2.write(45);
+    servo4.write(135);
+    PID_Guncelle();
+    delay(5000);
+    if (Telemetri.available()) komut = Telemetri.read();
+  }
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+void asagiIn() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  servo2.write(135);
+  servo4.write(45);
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+void yukariCik() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  servo2.write(45);
+  servo4.write(135);
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+void uDonusu() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  servo3.write(45);
+  servo5.write(135);
+  delay(5000);
+  servo3.write(135);
+  servo5.write(45);
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+void manevraKarma() {
+  komut = 'b'; sagaDon();
+  komut = 'c'; solaDon();
+  komut = 'd'; yunuslama();
+  komut = ' '; // Bitir
+}
