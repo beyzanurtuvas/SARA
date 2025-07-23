@@ -3,7 +3,7 @@
 #include <SD.h>
 
 ALACA_KART Veri_Kontrol;
-File Veri;
+File Veri; 
 
 // Sensör verileri
 float Pitch_Aci, Yaw_Aci;
