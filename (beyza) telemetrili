@@ -1,3 +1,237 @@
+//daha dad yeni
+#include "ALACAKART.h"
+
+ALACA_KART Veri_Kontrol;
+
+// Sensör verileri
+float Pitch_Aci, Yaw_Aci;
+float Gyro_y, Gyro_z;
+
+// PID hedef değerleri
+float Ref_Pitch = 0;
+float Ref_Yaw = 0;
+
+// PID hata ve çıkışları
+float pid_hata_pitch = 0, pid_out_pitch = 0;
+float pid_hata_yaw   = 0, pid_out_yaw   = 0;
+
+// PID sabitleri
+float Kp_pitch = 0.1, Ki_pitch = 0.0, Kd_pitch = 0.005;
+float Kp_yaw   = 0.1, Ki_yaw   = 0.0, Kd_yaw   = 0.005;
+float imax = 10;
+
+// PWM Sabitleri
+const int MOTOR_MAX_PWM = 1000;
+const int MOTOR_STOP_PWM = 1490;
+
+char komut = ' ';
+
+// Kademeli motor artırma
+void motorYavasArtir(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm >= hedefPWM; pwm -= 2) {
+    Veri_Kontrol.Servo_1(pwm);
+    delay(10);
+  }
+}
+
+// Kademeli motor azaltma
+void motorYavasAzalt(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm <= hedefPWM; pwm += 2) {
+    Veri_Kontrol.Servo_1(pwm);
+    delay(10);
+  }
+}
+
+// Servoları nötrle
+void tumServolariNotrle() {
+  Veri_Kontrol.Servo_2_Write(90);
+  Veri_Kontrol.Servo_3_Write(90);
+  Veri_Kontrol.Servo_4_Write(90);
+  Veri_Kontrol.Servo_5_Write(90);
+}
+
+// PID kontrol güncelle
+void PID_Guncelle() {
+  Pitch_Aci = Veri_Kontrol.Euler_Y();
+  Yaw_Aci   = Veri_Kontrol.Euler_Z();
+  Gyro_y = Veri_Kontrol.GYRO_Y();
+  Gyro_z = Veri_Kontrol.GYRO_Z();
+
+  pid_hata_pitch = (Ref_Pitch - Pitch_Aci) * 5 - Gyro_y;
+  pid_out_pitch = Veri_Kontrol.PID_2(pid_hata_pitch, Kp_pitch, Ki_pitch, Kd_pitch, imax);
+
+  pid_hata_yaw = (Ref_Yaw - Yaw_Aci) * 5 - Gyro_z;
+  pid_out_yaw = Veri_Kontrol.PID_1(pid_hata_yaw, Kp_yaw, Ki_yaw, Kd_yaw, imax);
+
+  Veri_Kontrol.Servo_2_Write(90 + pid_out_pitch);
+  Veri_Kontrol.Servo_4_Write(90 - pid_out_pitch);
+  Veri_Kontrol.Servo_3_Write(90 + pid_out_yaw);
+  Veri_Kontrol.Servo_5_Write(90 - pid_out_yaw);
+}
+
+// a → Düz git 10 saniye + yüzeye çık
+void git() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  unsigned long baslangic = millis();
+  while (millis() - baslangic < 10000) {
+    PID_Guncelle();
+    delay(10);
+  }
+
+  Veri_Kontrol.Servo_2_Write(45);
+  Veri_Kontrol.Servo_4_Write(135);
+  delay(2000);
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+// b → Sağ dönüş 10 saniye + yüzeye çık
+void sagaDon() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  unsigned long baslangic = millis();
+  while (millis() - baslangic < 10000) {
+    Veri_Kontrol.Servo_3_Write(45);
+    Veri_Kontrol.Servo_5_Write(135);
+
+    Pitch_Aci = Veri_Kontrol.Euler_Y();
+    Gyro_y = Veri_Kontrol.GYRO_Y();
+    pid_hata_pitch = (Ref_Pitch - Pitch_Aci) * 5 - Gyro_y;
+    pid_out_pitch = Veri_Kontrol.PID_2(pid_hata_pitch, Kp_pitch, Ki_pitch, Kd_pitch, imax);
+    Veri_Kontrol.Servo_2_Write(90 + pid_out_pitch);
+    Veri_Kontrol.Servo_4_Write(90 - pid_out_pitch);
+    delay(10);
+  }
+
+  Veri_Kontrol.Servo_2_Write(45);
+  Veri_Kontrol.Servo_4_Write(135);
+  delay(2000);
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+// c → Sol dönüş 10 saniye + yüzeye çık
+void solaDon() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  unsigned long baslangic = millis();
+  while (millis() - baslangic < 10000) {
+    Veri_Kontrol.Servo_3_Write(135);
+    Veri_Kontrol.Servo_5_Write(45);
+
+    Pitch_Aci = Veri_Kontrol.Euler_Y();
+    Gyro_y = Veri_Kontrol.GYRO_Y();
+    pid_hata_pitch = (Ref_Pitch - Pitch_Aci) * 5 - Gyro_y;
+    pid_out_pitch = Veri_Kontrol.PID_2(pid_hata_pitch, Kp_pitch, Ki_pitch, Kd_pitch, imax);
+    Veri_Kontrol.Servo_2_Write(90 + pid_out_pitch);
+    Veri_Kontrol.Servo_4_Write(90 - pid_out_pitch);
+    delay(10);
+  }
+
+  Veri_Kontrol.Servo_2_Write(45);
+  Veri_Kontrol.Servo_4_Write(135);
+  delay(2000);
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+// d → Yunuslama (2s dal, 4s çık)
+void yunuslama() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+
+  Veri_Kontrol.Servo_2_Write(135);
+  Veri_Kontrol.Servo_4_Write(45);
+  delay(2000);
+
+  Veri_Kontrol.Servo_2_Write(45);
+  Veri_Kontrol.Servo_4_Write(135);
+  delay(4000);
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+// e → Stabil dönüş testi
+void stabilDonusTesti() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  unsigned long baslangic = millis();
+  while (millis() - baslangic < 3000) {
+    PID_Guncelle();
+    delay(10);
+  }
+
+  motorYavasAzalt(MOTOR_MAX_PWM, 1300);
+
+  Veri_Kontrol.Servo_3_Write(45);
+  Veri_Kontrol.Servo_5_Write(135);
+  baslangic = millis();
+  while (millis() - baslangic < 1000) {
+    Pitch_Aci = Veri_Kontrol.Euler_Y();
+    Gyro_y = Veri_Kontrol.GYRO_Y();
+    pid_hata_pitch = (Ref_Pitch - Pitch_Aci) * 5 - Gyro_y;
+    pid_out_pitch = Veri_Kontrol.PID_2(pid_hata_pitch, Kp_pitch, Ki_pitch, Kd_pitch, imax);
+    Veri_Kontrol.Servo_2_Write(90 + pid_out_pitch);
+    Veri_Kontrol.Servo_4_Write(90 - pid_out_pitch);
+    delay(10);
+  }
+
+  motorYavasArtir(1300, MOTOR_MAX_PWM);
+  baslangic = millis();
+  while (millis() - baslangic < 3000) {
+    PID_Guncelle();
+    delay(10);
+  }
+
+  motorYavasAzalt(MOTOR_MAX_PWM, 1300);
+
+  Veri_Kontrol.Servo_3_Write(135);
+  Veri_Kontrol.Servo_5_Write(45);
+  baslangic = millis();
+  while (millis() - baslangic < 1000) {
+    Pitch_Aci = Veri_Kontrol.Euler_Y();
+    Gyro_y = Veri_Kontrol.GYRO_Y();
+    pid_hata_pitch = (Ref_Pitch - Pitch_Aci) * 5 - Gyro_y;
+    pid_out_pitch = Veri_Kontrol.PID_2(pid_hata_pitch, Kp_pitch, Ki_pitch, Kd_pitch, imax);
+    Veri_Kontrol.Servo_2_Write(90 + pid_out_pitch);
+    Veri_Kontrol.Servo_4_Write(90 - pid_out_pitch);
+    delay(10);
+  }
+
+  motorYavasAzalt(1300, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+// Kurulum
+void setup() {
+  Serial1.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+  Veri_Kontrol.Servo_1_begin();
+  Veri_Kontrol.Servo_2_begin();
+  Veri_Kontrol.Servo_3_begin();
+  Veri_Kontrol.Servo_4_begin();
+  Veri_Kontrol.Servo_5_begin();
+  Veri_Kontrol.setup_PID_1();
+  Veri_Kontrol.setup_PID_2();
+}
+
+// Ana döngü
+void loop() {
+  if (Serial1.available()) {
+    komut = Serial1.read();
+  }
+
+  if (komut == 'a') git();
+  else if (komut == 'b') sagaDon();
+  else if (komut == 'c') solaDon();
+  else if (komut == 'd') yunuslama();
+  else if (komut == 'e') stabilDonusTesti();
+  else PID_Guncelle();
+
+  delay(10);
+}
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------
 //yeni
 #include "ALACAKART.h"
 #include <SPI.h>
