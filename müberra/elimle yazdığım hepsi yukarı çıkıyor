@@ -68,7 +68,7 @@ void gorev_a() {
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
 }
 
-//sağ
+//sol
 void gorev_b() {
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
@@ -89,7 +89,7 @@ void gorev_b() {
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
 }
 
-//sol
+//sağ
 void gorev_c() {
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
@@ -127,7 +127,10 @@ void gorev_d() {
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
 }
 
+
+/* 
 //aşağı 
+
 void gorev_e() { 
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
@@ -136,7 +139,8 @@ void gorev_e() {
   Veri_Kontrol.Servo_4_Write(45);
   delay(5000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
-}
+}  */
+
 
 //yukarı
 void gorev_f() {  
@@ -158,7 +162,7 @@ void gorev_g() {
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
   Veri_Kontrol.Servo_3_Write(135);
   Veri_Kontrol.Servo_5_Write(45);
-  delay(1500);
+  delay(3000);
 
   motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
   tumServolariNotrle();
