@@ -1,0 +1,96 @@
+// === ALACAKART PID Kontrollü Sürekli Sağ Dönüş Görev Senaryosu ===
+// Bu kod, sualtı aracının ilk 10 saniye hareketsiz kalmasını,
+// ardından PID destekli sabit sağa dönüş yapmasını sağlar.
+// Görev süresi 35 saniyeyi geçince sistem tamamen durur.
+
+#include "ALACAKART.h"
+
+ALACA_KART Veri_Kontrol;
+
+// Servo ve Motor PWM sabitleri
+const int SERVO_NEUTRAL = 90;
+const int MOTOR_RUN_PWM = 1000;   // Max hız (ileri hareket)
+const int MOTOR_STOP_PWM = 1490;  // ESC durma PWM
+
+// PID parametreleri
+float Ref_Pitch = 0;
+float Ref_Yaw   = 0;
+
+float Kp_pitch = 0.1, Ki_pitch = 0.0, Kd_pitch = 0.005;
+float Kp_yaw   = 0.1, Ki_yaw   = 0.0, Kd_yaw   = 0.005;
+float imax     = 10;
+
+unsigned long start_time = 0;
+
+void setup() {
+  Serial.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+
+  // Servo başlatma
+  Veri_Kontrol.Servo_1_begin(); // ESC
+  Veri_Kontrol.Servo_2_begin(); // Pitch ön
+  Veri_Kontrol.Servo_3_begin(); // Yaw ön
+  Veri_Kontrol.Servo_4_begin(); // Pitch arka
+  Veri_Kontrol.Servo_5_begin(); // Yaw arka
+
+  // PID setup
+  Veri_Kontrol.setup_PID_1(); // Yaw PID
+  Veri_Kontrol.setup_PID_2(); // Pitch PID
+
+  // ESC başlat (kademeli artış)
+  for (int pwm = MOTOR_STOP_PWM; pwm >= MOTOR_RUN_PWM; pwm -= 2) {
+    Veri_Kontrol.Servo_1(pwm);
+    delay(10);
+  }
+
+  start_time = millis();
+}
+
+void loop() {
+  unsigned long now = millis();
+  float elapsed = (now - start_time) / 1000.0;
+
+  float pitch = Veri_Kontrol.Euler_Y();
+  float yaw   = Veri_Kontrol.Euler_Z();
+  float gyro_y = Veri_Kontrol.GYRO_Y();
+  float gyro_z = Veri_Kontrol.GYRO_Z();
+
+  // --- PID Hesapları ---
+  float pid_out_pitch = Veri_Kontrol.PID_2((Ref_Pitch - pitch) * 5 - gyro_y, Kp_pitch, Ki_pitch, Kd_pitch, imax);
+  float pid_out_yaw   = Veri_Kontrol.PID_1((Ref_Yaw - yaw) * 5 - gyro_z, Kp_yaw, Ki_yaw, Kd_yaw, imax);
+
+  // --- PID Uygulama ---
+  Veri_Kontrol.Servo_2_Write(90 + pid_out_pitch);
+  Veri_Kontrol.Servo_4_Write(90 - pid_out_pitch);
+  Veri_Kontrol.Servo_3_Write(90 + pid_out_yaw);
+  Veri_Kontrol.Servo_5_Write(90 - pid_out_yaw);
+
+  if (elapsed < 10.0) {
+    // Başlangıç bekleme süresi
+    Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
+  } else if (elapsed >= 10.0 && elapsed < 35.0) {
+    // Sabit hızla ileri hareket
+    Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+
+    // Sağ dönüş için hedef yaw sabiti güncellenebilir (örnek: 90 derece sağa)
+    Ref_Yaw = -90;
+  } else {
+    // Görev tamamlandı – sistem durduruluyor
+    Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
+    Veri_Kontrol.Servo_2_Write(SERVO_NEUTRAL);
+    Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
+    Veri_Kontrol.Servo_4_Write(SERVO_NEUTRAL);
+    Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+    Serial.println(">>> Görev tamamlandı. Sistem durduruldu.");
+    while (true);
+  }
+
+  // Telemetri
+  Serial.print("Zaman: "); Serial.print(elapsed, 2);
+  Serial.print(" | Pitch: "); Serial.print(pitch, 2);
+  Serial.print(" | Yaw: "); Serial.print(yaw, 2);
+  Serial.print(" | PID_Pitch: "); Serial.print(pid_out_pitch, 2);
+  Serial.print(" | PID_Yaw: "); Serial.println(pid_out_yaw, 2);
+
+  delay(20);
+}
