@@ -1,3 +1,12 @@
+// === ALACAKART Görev Kontrol Senaryosu (PID'siz) ===
+// Bu görevde araç:
+// 1. 10 saniye bekler
+// 2. 2 saniye düz gider
+// 3. Sağa ve sola dönüş yapar
+// 4. Yunuslama hareketi uygular
+// 5. Bu döngü 3 kez tekrar edilir
+
+
 #include "ALACAKART.h"
 #include <SPI.h>
 #include <SD.h>
@@ -7,25 +16,24 @@ File Veri;
 
 // Sabitler
 const int CS_SD = PA4;
-const int SERVO_NEUTRAL = 90;       // Duz konum
-const int SERVO_LEFT = 45;          // Saga donuste on servo sola, arka servo saga
-const int SERVO_RIGHT = 135;        // Sola donuste on servo saga, arka servo sola
-const int MOTOR_RUN_PWM = 2000;     // Maksimum hiz
-const int MOTOR_STOP_PWM = 1490;    // ESC arming ve durdurma PWM
-const int MOTOR_LOW_PWM = 1600;     // Hafif calisma
+const int SERVO_NEUTRAL = 90;
+const int SERVO_LEFT = 45;
+const int SERVO_RIGHT = 135;
+const int MOTOR_RUN_PWM = 1000;
+const int MOTOR_STOP_PWM = 1490;
 
-// Motor PWM’ini kademeli artir
+// Motor PWM’ini kademeli artır
 void motorYavasArtir(int baslangicPWM, int hedefPWM) {
-  for (int pwm = baslangicPWM; pwm <= hedefPWM; pwm += 2) {
-    Veri_Kontrol.Servo_1(pwm); // ESC sinyali gonder
+  for (int pwm = baslangicPWM; pwm >= hedefPWM; pwm -= 2) {
+    Veri_Kontrol.Servo_1(pwm);
     delay(10);
   }
 }
 
 // Motor PWM’ini kademeli azalt
 void motorYavasAzalt(int baslangicPWM, int hedefPWM) {
-  for (int pwm = baslangicPWM; pwm >= hedefPWM; pwm -= 2) {
-    Veri_Kontrol.Servo_1(pwm); // ESC sinyali gonder
+  for (int pwm = baslangicPWM; pwm <= hedefPWM; pwm += 2) {
+    Veri_Kontrol.Servo_1(pwm);
     delay(10);
   }
 }
@@ -34,14 +42,14 @@ void setup() {
   Serial.begin(57600);
   Veri_Kontrol.Sensor_begin();
 
-  // Servo pinleri baslatiliyor
+  // Servo pinleri başlatılıyor
   Veri_Kontrol.Servo_1_begin();
   Veri_Kontrol.Servo_2_begin();
   Veri_Kontrol.Servo_3_begin();
   Veri_Kontrol.Servo_4_begin();
   Veri_Kontrol.Servo_5_begin();
 
-  // SD Kart baslatiliyor
+  // SD Kart başlatılıyor
   SPI.begin();
   if (SD.begin(CS_SD)) {
     Veri = SD.open("Veriler.txt", FILE_WRITE);
@@ -55,21 +63,21 @@ void loop() {
     Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
     delay(10000);
 
-    // 10-12 sn: Motor yavas calisir
+    // 10-12 sn: Motor yavaş çalışır
     motorYavasArtir(MOTOR_STOP_PWM, MOTOR_RUN_PWM);
 
-    // 12-14 sn: 2 saniye duz git
+    // 12-14 sn: 2 saniye düz git
     Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
     tumServolariNotrle();
     delay(2000);
 
-    // 14-15 sn: Yavas yavas dur
+    // 14-15 sn: Yavaşça dur
     motorYavasAzalt(MOTOR_RUN_PWM, MOTOR_STOP_PWM);
 
-    // 15-16 sn: Saga donmeye hazirlan
+    // 15-16 sn: Sağa dönmeye hazırlan
     motorYavasArtir(MOTOR_STOP_PWM, MOTOR_RUN_PWM);
 
-    // 16-21 sn: 5 saniye saga don
+    // 16-21 sn: 5 saniye sağa dön
     Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
     Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
     Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
@@ -78,10 +86,10 @@ void loop() {
     // 21-22 sn: Durdur
     motorYavasAzalt(MOTOR_RUN_PWM, MOTOR_STOP_PWM);
 
-    // 22-23 sn: Sola donmeye hazirlan
+    // 22-23 sn: Sola dönmeye hazırlan
     motorYavasArtir(MOTOR_STOP_PWM, MOTOR_RUN_PWM);
 
-    // 23-28 sn: 5 saniye sola don
+    // 23-28 sn: 5 saniye sola dön
     Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
     Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
     Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
@@ -90,20 +98,20 @@ void loop() {
     // 28-29 sn: Durdur
     motorYavasAzalt(MOTOR_RUN_PWM, MOTOR_STOP_PWM);
 
-    // 29-30 sn: Yunuslama oncesi motoru tekrar calistir
+    // 29-30 sn: Yunuslama öncesi motoru tekrar çalıştır
     motorYavasArtir(MOTOR_STOP_PWM, MOTOR_RUN_PWM);
 
-    // 30-32 sn: Asagi eg (pitch kontrol)
+    // 30-32 sn: Aşağı eğ (pitch kontrol)
     Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
     Veri_Kontrol.Servo_2_Write(SERVO_RIGHT);
     Veri_Kontrol.Servo_4_Write(SERVO_LEFT);
     delay(2000);
 
-    // 32-34 sn: Duzles
+    // 32-34 sn: Düzleş
     tumServolariNotrle();
     delay(2000);
 
-    // 34-36 sn: Yukari eg
+    // 34-36 sn: Yukarı eğ
     Veri_Kontrol.Servo_2_Write(SERVO_LEFT);
     Veri_Kontrol.Servo_4_Write(SERVO_RIGHT);
     delay(2000);
@@ -115,7 +123,7 @@ void loop() {
 
   if (Veri) Veri.close();
   Serial.println(">>> 3 döngü başarıyla tamamlandı.");
-  while (true); // Sonsuz duraklatma
+  while (true);
 }
 
 void tumServolariNotrle() {
