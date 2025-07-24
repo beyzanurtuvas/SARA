@@ -146,13 +146,6 @@ void gorev_f() {
   Veri_Kontrol.Servo_2_Write(45);
   Veri_Kontrol.Servo_4_Write(135);
   delay(5000);
-
-   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
-  delay(3000);
-
-  Veri_Kontrol.Servo_2_Write(45);
-  Veri_Kontrol.Servo_4_Write(135);
-  delay(8000);
   
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
 }
