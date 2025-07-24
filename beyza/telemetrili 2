@@ -1,0 +1,207 @@
+#include "ALACAKART.h"
+
+ALACA_KART Veri_Kontrol;
+
+float Pitch_Aci, Yaw_Aci;
+float Gyro_y, Gyro_z;
+
+float Ref_Pitch = 0;
+float Ref_Yaw = 0;
+
+float pid_hata_pitch = 0, pid_out_pitch = 0;
+float pid_hata_yaw   = 0, pid_out_yaw   = 0;
+
+float Kp_pitch = 0.1, Ki_pitch = 0.0, Kd_pitch = 0.005;
+float Kp_yaw   = 0.1, Ki_yaw   = 0.0, Kd_yaw   = 0.005;
+float imax = 10;
+
+const int MOTOR_MAX_PWM = 1000;
+const int MOTOR_STOP_PWM = 1490;
+const int MOTOR_DONUS_PWM = 1200;
+
+char komut = ' ';
+
+void motorYavasArtir(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm >= hedefPWM; pwm -= 1) {
+    Veri_Kontrol.Servo_1_Write(pwm);
+    delay(5);
+  }
+}
+
+void motorYavasAzalt(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm <= hedefPWM; pwm += 1) {
+    Veri_Kontrol.Servo_1_Write(pwm);
+    delay(5);
+  }
+}
+
+void tumServolariNotrle() {
+  Veri_Kontrol.Servo_2_Write(90);
+  Veri_Kontrol.Servo_3_Write(90);
+  Veri_Kontrol.Servo_4_Write(90);
+  Veri_Kontrol.Servo_5_Write(90);
+}
+
+void PID_Guncelle() {
+  Pitch_Aci = Veri_Kontrol.Euler_Y();
+  Yaw_Aci   = Veri_Kontrol.Euler_Z();
+  Gyro_y = Veri_Kontrol.GYRO_Y();
+  Gyro_z = Veri_Kontrol.GYRO_Z();
+
+  pid_hata_pitch = (Ref_Pitch - Pitch_Aci) * 5 - Gyro_y;
+  pid_out_pitch = Veri_Kontrol.PID_2(pid_hata_pitch, Kp_pitch, Ki_pitch, Kd_pitch, imax);
+
+  pid_hata_yaw = (Ref_Yaw - Yaw_Aci) * 5 - Gyro_z;
+  pid_out_yaw = Veri_Kontrol.PID_1(pid_hata_yaw, Kp_yaw, Ki_yaw, Kd_yaw, imax);
+
+  Veri_Kontrol.Servo_2_Write(90 + pid_out_pitch);
+  Veri_Kontrol.Servo_4_Write(90 - pid_out_pitch);
+  Veri_Kontrol.Servo_3_Write(90 + pid_out_yaw);
+  Veri_Kontrol.Servo_5_Write(90 - pid_out_yaw);
+}
+
+void git() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  unsigned long basla = millis();
+  while (millis() - basla < 10000) {
+    PID_Guncelle();
+    delay(10);
+  }
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+  yunuslama();
+}
+
+void sagaDon() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_DONUS_PWM);
+  unsigned long basla = millis();
+  while (millis() - basla < 1000) {
+    Veri_Kontrol.Servo_3_Write(45);
+    Veri_Kontrol.Servo_5_Write(135);
+    PID_Guncelle();
+    delay(10);
+  }
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  basla = millis();
+  while (millis() - basla < 1000) {
+    PID_Guncelle();
+    delay(10);
+  }
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+  yunuslama();
+}
+
+void solaDon() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_DONUS_PWM);
+  unsigned long basla = millis();
+  while (millis() - basla < 1000) {
+    Veri_Kontrol.Servo_3_Write(135);
+    Veri_Kontrol.Servo_5_Write(45);
+    PID_Guncelle();
+    delay(10);
+  }
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  basla = millis();
+  while (millis() - basla < 1000) {
+    PID_Guncelle();
+    delay(10);
+  }
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+  yunuslama();
+}
+
+void yunuslama() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  Veri_Kontrol.Servo_2_Write(135);
+  Veri_Kontrol.Servo_4_Write(45);
+  PID_Guncelle();
+  delay(2000);
+  Veri_Kontrol.Servo_2_Write(45);
+  Veri_Kontrol.Servo_4_Write(135);
+  PID_Guncelle();
+  delay(4000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+void asagiIn() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  Veri_Kontrol.Servo_2_Write(135);
+  Veri_Kontrol.Servo_4_Write(45);
+  unsigned long basla = millis();
+  while (millis() - basla < 5000) {
+    PID_Guncelle();
+    delay(10);
+  }
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+void yukariCik() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  Veri_Kontrol.Servo_2_Write(45);
+  Veri_Kontrol.Servo_4_Write(135);
+  unsigned long basla = millis();
+  while (millis() - basla < 5000) {
+    PID_Guncelle();
+    delay(10);
+  }
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+void uDonusu() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  unsigned long basla = millis();
+  while (millis() - basla < 3000) {
+    Veri_Kontrol.Servo_3_Write(45);
+    Veri_Kontrol.Servo_5_Write(135);
+    PID_Guncelle();
+    delay(10);
+  }
+  basla = millis();
+  while (millis() - basla < 3000) {
+    Veri_Kontrol.Servo_3_Write(135);
+    Veri_Kontrol.Servo_5_Write(45);
+    PID_Guncelle();
+    delay(10);
+  }
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+void manevraKarma() {
+  sagaDon();
+  solaDon();
+  yunuslama();
+}
+
+void setup() {
+  Serial1.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+  Veri_Kontrol.Servo_1_begin();
+  Veri_Kontrol.Servo_2_begin();
+  Veri_Kontrol.Servo_3_begin();
+  Veri_Kontrol.Servo_4_begin();
+  Veri_Kontrol.Servo_5_begin();
+  Veri_Kontrol.setup_PID_1();
+  Veri_Kontrol.setup_PID_2();
+}
+
+void loop() {
+  if (Serial1.available()) komut = Serial1.read();
+
+  if (komut == 'a') git();
+  else if (komut == 'b') sagaDon();
+  else if (komut == 'c') solaDon();
+  else if (komut == 'd') yunuslama();
+  else if (komut == 'e') asagiIn();
+  else if (komut == 'f') yukariCik();
+  else if (komut == 'g') uDonusu();
+  else if (komut == 'h') manevraKarma();
+  else PID_Guncelle();
+
+  delay(10);
+}
