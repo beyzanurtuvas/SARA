@@ -1,4 +1,5 @@
 //çalışırken imu+ 1100 pwm + i şıkkkında servo
+
 #include "ALACAKART.h"
 
 ALACA_KART Veri_Kontrol;
