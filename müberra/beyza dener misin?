@@ -1,0 +1,222 @@
+#include "ALACAKART.h"
+
+ALACA_KART Veri_Kontrol;
+
+const int MOTOR_MAX_PWM  = 1100;
+const int MOTOR_STOP_PWM = 1490;
+const int MOTOR_DONUS_PWM = 1250;
+
+float Pitch_Aci, Yaw_Aci;
+float Gyro_y, Gyro_z;
+float Ref_Pitch = 0;
+float Ref_Yaw = 0;
+float pid_hata_pitch = 0, pid_out_pitch = 0;
+float pid_hata_yaw   = 0, pid_out_yaw   = 0;
+float Kp_pitch = 0.1, Ki_pitch = 0.0, Kd_pitch = 0.005;
+float Kp_yaw   = 0.1, Ki_yaw   = 0.0, Kd_yaw   = 0.005;
+float imax = 10;
+char komut = ' ';
+
+void motorYavasArtir(int baslangic, int hedef) {
+  for (int pwm = baslangic; pwm >= hedef; pwm -= 2) {
+    Veri_Kontrol.Servo_1(pwm);
+    PID_Guncelle();
+    delay(10);
+  }
+}
+
+void motorYavasAzalt(int baslangic, int hedef) {
+  for (int pwm = baslangic; pwm <= hedef; pwm += 2) {
+    Veri_Kontrol.Servo_1(pwm);
+    PID_Guncelle();
+    delay(10);
+  }
+}
+
+void tumServolariNotrle() {
+  Veri_Kontrol.Servo_2_Write(90);
+  Veri_Kontrol.Servo_3_Write(90);
+  Veri_Kontrol.Servo_4_Write(90);
+  Veri_Kontrol.Servo_5_Write(90);
+}
+
+void PID_Guncelle() {
+  Pitch_Aci = Veri_Kontrol.Euler_Y();
+  Yaw_Aci = Veri_Kontrol.Euler_Z();
+  Gyro_y = Veri_Kontrol.GYRO_Y();
+  Gyro_z = Veri_Kontrol.GYRO_Z();
+
+  pid_hata_pitch = (Ref_Pitch - Pitch_Aci) * 5 - Gyro_y;
+  pid_out_pitch = Veri_Kontrol.PID_2(pid_hata_pitch, Kp_pitch, Ki_pitch, Kd_pitch, imax);
+  pid_hata_yaw = (Ref_Yaw - Yaw_Aci) * 5 - Gyro_z;
+  pid_out_yaw = Veri_Kontrol.PID_1(pid_hata_yaw, Kp_yaw, Ki_yaw, Kd_yaw, imax);
+
+  Veri_Kontrol.Servo_2_Write(90 + pid_out_pitch);
+  Veri_Kontrol.Servo_4_Write(90 - pid_out_pitch);
+  Veri_Kontrol.Servo_3_Write(90 + pid_out_yaw);
+  Veri_Kontrol.Servo_5_Write(90 - pid_out_yaw);
+}
+
+// === Görev Fonksiyonları ===
+
+void gorev_a() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  for (int i = 0; i < 500; i++) { PID_Guncelle(); delay(10); }
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+}
+
+void gorev_b() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  for (int i = 0; i < 300; i++) { PID_Guncelle(); delay(10); }
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  Veri_Kontrol.Servo_3_Write(135);
+  Veri_Kontrol.Servo_5_Write(45);
+  for (int i = 0; i < 150; i++) { PID_Guncelle(); delay(10); }
+
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  tumServolariNotrle();
+  for (int i = 0; i < 500; i++) { PID_Guncelle(); delay(10); }
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+}
+
+void gorev_c() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  for (int i = 0; i < 300; i++) { PID_Guncelle(); delay(10); }
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  Veri_Kontrol.Servo_3_Write(45);
+  Veri_Kontrol.Servo_5_Write(135);
+  for (int i = 0; i < 150; i++) { PID_Guncelle(); delay(10); }
+
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  tumServolariNotrle();
+  for (int i = 0; i < 500; i++) { PID_Guncelle(); delay(10); }
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+}
+
+void gorev_d() {
+  Veri_Kontrol.Servo_2_Write(135);
+  Veri_Kontrol.Servo_4_Write(45);
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  for (int i = 0; i < 500; i++) { PID_Guncelle(); delay(10); }
+
+  Veri_Kontrol.Servo_2_Write(90);
+  Veri_Kontrol.Servo_4_Write(90);
+  for (int i = 0; i < 300; i++) { PID_Guncelle(); delay(10); }
+
+  Veri_Kontrol.Servo_2_Write(45);
+  Veri_Kontrol.Servo_4_Write(135);
+  for (int i = 0; i < 700; i++) { PID_Guncelle(); delay(10); }
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+}
+
+void gorev_e() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  for (int i = 0; i < 300; i++) { PID_Guncelle(); delay(10); }
+
+  Veri_Kontrol.Servo_2_Write(135);
+  Veri_Kontrol.Servo_4_Write(45);
+  for (int i = 0; i < 500; i++) { PID_Guncelle(); delay(10); }
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+}
+
+void gorev_f() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  for (int i = 0; i < 300; i++) { PID_Guncelle(); delay(10); }
+
+  Veri_Kontrol.Servo_2_Write(45);
+  Veri_Kontrol.Servo_4_Write(135);
+  for (int i = 0; i < 500; i++) { PID_Guncelle(); delay(10); }
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+}
+
+void gorev_g() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  for (int i = 0; i < 500; i++) { PID_Guncelle(); delay(10); }
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  Veri_Kontrol.Servo_3_Write(135);
+  Veri_Kontrol.Servo_5_Write(45);
+  for (int i = 0; i < 150; i++) { PID_Guncelle(); delay(10); }
+
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  tumServolariNotrle();
+  for (int i = 0; i < 500; i++) { PID_Guncelle(); delay(10); }
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+}
+
+void gorev_h() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  for (int i = 0; i < 500; i++) { PID_Guncelle(); delay(10); }
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  Veri_Kontrol.Servo_3_Write(45);
+  Veri_Kontrol.Servo_5_Write(135);
+  for (int i = 0; i < 150; i++) { PID_Guncelle(); delay(10); }
+
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  tumServolariNotrle();
+  for (int i = 0; i < 500; i++) { PID_Guncelle(); delay(10); }
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  Veri_Kontrol.Servo_3_Write(135);
+  Veri_Kontrol.Servo_5_Write(45);
+  for (int i = 0; i < 150; i++) { PID_Guncelle(); delay(10); }
+
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  tumServolariNotrle();
+  for (int i = 0; i < 500; i++) { PID_Guncelle(); delay(10); }
+
+  Veri_Kontrol.Servo_2_Write(45);
+  Veri_Kontrol.Servo_4_Write(135);
+  for (int i = 0; i < 500; i++) { PID_Guncelle(); delay(10); }
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+}
+
+void gorev_i() {
+  tumServolariNotrle();
+  Serial1.println("Servolar sıfırlandı (90°).");
+}
+
+// === Kurulum ve Döngü ===
+
+void setup() {
+  Serial1.begin(57600);
+  Veri_Kontrol.Sensor_begin();
+  Veri_Kontrol.Servo_1_begin();
+  Veri_Kontrol.Servo_2_begin();
+  Veri_Kontrol.Servo_3_begin();
+  Veri_Kontrol.Servo_4_begin();
+  Veri_Kontrol.Servo_5_begin();
+  Veri_Kontrol.setup_PID_1();
+  Veri_Kontrol.setup_PID_2();
+}
+
+void loop() {
+  if (Serial1.available()) {
+    komut = Serial1.read();
+  }
+
+  switch (komut) {
+    case 'a': gorev_a(); break;
+    case 'b': gorev_b(); break;
+    case 'c': gorev_c(); break;
+    case 'd': gorev_d(); break;
+    case 'e': gorev_e(); break;
+    case 'f': gorev_f(); break;
+    case 'g': gorev_g(); break;
+    case 'h': gorev_h(); break;
+    case 'i': gorev_i(); break;
+    default: PID_Guncelle(); break;
+  }
+
+  delay(10);
+}
