@@ -2,14 +2,16 @@
 
 ALACA_KART Veri_Kontrol;
 
-const int MOTOR_MAX_PWM  = 1100;
-const int MOTOR_STOP_PWM = 1490;
-const int MOTOR_DONUS_PWM = 1250;
+// PWM sabitleri
+const int MOTOR_MAX_PWM  = 1100;   // İleri hareket için maksimum PWM değeri
+const int MOTOR_STOP_PWM = 1490;   // ESC'nin durduğu (stop) PWM değeri
+const int MOTOR_DONUS_PWM = 1250;  // Dönüş esnasında kullanılan orta PWM değeri
 
+// Sensör ve PID değişkenleri
 float Pitch_Aci, Yaw_Aci;
 float Gyro_y, Gyro_z;
-float Ref_Pitch = 0;
-float Ref_Yaw = 0;
+float Ref_Pitch = 0;  // Hedef pitch açısı
+float Ref_Yaw = 0;    // Hedef yaw açısı
 float pid_hata_pitch = 0, pid_out_pitch = 0;
 float pid_hata_yaw   = 0, pid_out_yaw   = 0;
 float Kp_pitch = 0.1, Ki_pitch = 0.0, Kd_pitch = 0.005;
@@ -17,6 +19,7 @@ float Kp_yaw   = 0.1, Ki_yaw   = 0.0, Kd_yaw   = 0.005;
 float imax = 10;
 char komut = ' ';
 
+// Motoru yavaşça hızlandırır (geri PWM mantığı)
 void motorYavasArtir(int baslangic, int hedef) {
   for (int pwm = baslangic; pwm >= hedef; pwm -= 2) {
     Veri_Kontrol.Servo_1(pwm);
@@ -24,6 +27,7 @@ void motorYavasArtir(int baslangic, int hedef) {
   }
 }
 
+// Motoru yavaşça durdurur
 void motorYavasAzalt(int baslangic, int hedef) {
   for (int pwm = baslangic; pwm <= hedef; pwm += 2) {
     Veri_Kontrol.Servo_1(pwm);
@@ -31,6 +35,7 @@ void motorYavasAzalt(int baslangic, int hedef) {
   }
 }
 
+// Tüm yönlendirme servolarını nötr konuma getirir
 void tumServolariNotrle() {
   Veri_Kontrol.Servo_2_Write(90);
   Veri_Kontrol.Servo_3_Write(90);
@@ -38,6 +43,7 @@ void tumServolariNotrle() {
   Veri_Kontrol.Servo_5_Write(90);
 }
 
+// Roketi yukarı çıkarır (2 saniyelik yüzeye yükselme)
 void yukariCik() {
   Veri_Kontrol.Servo_2_Write(45);
   Veri_Kontrol.Servo_4_Write(135);
@@ -47,6 +53,7 @@ void yukariCik() {
   Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
 }
 
+// PID kontrol çıkışlarını hesaplayıp ilgili servolara uygular
 void PID_Guncelle() {
   Pitch_Aci = Veri_Kontrol.Euler_Y();
   Yaw_Aci = Veri_Kontrol.Euler_Z();
@@ -66,6 +73,7 @@ void PID_Guncelle() {
 
 // === Görev Fonksiyonları ===
 
+// Görev A: Yüzeye çık → düz git (5sn) → dur
 void gorev_a() {
   yukariCik();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
@@ -73,6 +81,7 @@ void gorev_a() {
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
 }
 
+// Görev B: Yüzeye çık → düz git → sağa dön → düz git → dur
 void gorev_b() {
   yukariCik();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
@@ -89,6 +98,7 @@ void gorev_b() {
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
 }
 
+// Görev C: Yüzeye çık → düz git → sola dön → düz git → dur
 void gorev_c() {
   yukariCik();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
@@ -105,6 +115,7 @@ void gorev_c() {
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
 }
 
+// Görev D: Yüzeye çık → aşağı in → düz → yukarı çık → dur
 void gorev_d() {
   yukariCik();
   Veri_Kontrol.Servo_2_Write(135);
@@ -122,6 +133,7 @@ void gorev_d() {
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
 }
 
+// Görev E: Yüzeye çık → düz → aşağı in → dur
 void gorev_e() {
   yukariCik();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
@@ -133,6 +145,7 @@ void gorev_e() {
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
 }
 
+// Görev F: Yüzeye çık → düz → yukarı çık → dur
 void gorev_f() {
   yukariCik();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
@@ -144,6 +157,7 @@ void gorev_f() {
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
 }
 
+// Görev G: Yüzeye çık → düz → sağa dön → düz → dur
 void gorev_g() {
   yukariCik();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
@@ -160,6 +174,7 @@ void gorev_g() {
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
 }
 
+// Görev H: Kompozit görev (sola dön → sağa dön → yukarı çık → dur)
 void gorev_h() {
   yukariCik();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
@@ -190,8 +205,7 @@ void gorev_h() {
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
 }
 
-// === Kurulum ve Döngü ===
-
+// === Kurulum Fonksiyonu ===
 void setup() {
   Serial1.begin(57600);
   Veri_Kontrol.Sensor_begin();
@@ -204,6 +218,7 @@ void setup() {
   Veri_Kontrol.setup_PID_2();
 }
 
+// Ana döngü: Gelen komuta göre görevi çalıştır
 void loop() {
   if (Serial1.available()) {
     komut = Serial1.read();
@@ -218,7 +233,7 @@ void loop() {
     case 'f': gorev_f(); break;
     case 'g': gorev_g(); break;
     case 'h': gorev_h(); break;
-    default: PID_Guncelle(); break;
+    default: PID_Guncelle(); break; // Komut yoksa PID kontrol çalışır
   }
 
   delay(10);
