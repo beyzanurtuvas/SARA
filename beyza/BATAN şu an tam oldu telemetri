@@ -79,6 +79,7 @@ void gorev_a() {
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(5000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+tumServolariNotrle();
 }
 
 // Görev B: Yüzeye çık → düz git → sağa dön → düz git → dur
@@ -131,6 +132,7 @@ void gorev_d() {
   Veri_Kontrol.Servo_4_Write(135);
   delay(7000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+tumServolariNotrle();
 }
 
 // Görev E: Yüzeye çık → düz → aşağı in → dur
@@ -143,6 +145,7 @@ void gorev_e() {
   Veri_Kontrol.Servo_4_Write(45);
   delay(5000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+tumServolariNotrle();
 }
 
 // Görev F: Yüzeye çık → düz → yukarı çık → dur
@@ -155,6 +158,7 @@ void gorev_f() {
   Veri_Kontrol.Servo_4_Write(135);
   delay(5000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+tumServolariNotrle();
 }
 
 // Görev G: Yüzeye çık → düz → sağa dön → düz → dur
@@ -203,6 +207,7 @@ void gorev_h() {
   delay(5000);
 
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+tumServolariNotrle();
 }
 
 // === Kurulum Fonksiyonu ===
