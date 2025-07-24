@@ -50,7 +50,7 @@ void yukariCik() {
   Veri_Kontrol.Servo_1(MOTOR_MAX_PWM);
   delay(2000);
   tumServolariNotrle();
-  Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
+  delay(10);
 }
 
 // PID kontrol çıkışlarını hesaplayıp ilgili servolara uygular
@@ -76,7 +76,6 @@ void PID_Guncelle() {
 // Görev A: Yüzeye çık → düz git (5sn) → dur
 void gorev_a() {
   yukariCik();
-  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(5000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
 tumServolariNotrle();
@@ -85,7 +84,6 @@ tumServolariNotrle();
 // Görev B: Yüzeye çık → düz git → sağa dön → düz git → dur
 void gorev_b() {
   yukariCik();
-  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
 
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
@@ -102,7 +100,6 @@ void gorev_b() {
 // Görev C: Yüzeye çık → düz git → sola dön → düz git → dur
 void gorev_c() {
   yukariCik();
-  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
 
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
@@ -119,9 +116,10 @@ void gorev_c() {
 // Görev D: Yüzeye çık → aşağı in → düz → yukarı çık → dur
 void gorev_d() {
   yukariCik();
+  
   Veri_Kontrol.Servo_2_Write(135);
   Veri_Kontrol.Servo_4_Write(45);
-  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+ 
   delay(5000);
 
   Veri_Kontrol.Servo_2_Write(90);
@@ -138,7 +136,6 @@ tumServolariNotrle();
 // Görev E: Yüzeye çık → düz → aşağı in → dur
 void gorev_e() {
   yukariCik();
-  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
 
   Veri_Kontrol.Servo_2_Write(135);
@@ -151,7 +148,6 @@ tumServolariNotrle();
 // Görev F: Yüzeye çık → düz → yukarı çık → dur
 void gorev_f() {
   yukariCik();
-  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
 
   Veri_Kontrol.Servo_2_Write(45);
@@ -164,7 +160,6 @@ tumServolariNotrle();
 // Görev G: Yüzeye çık → düz → sağa dön → düz → dur
 void gorev_g() {
   yukariCik();
-  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(5000);
 
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
@@ -181,7 +176,6 @@ void gorev_g() {
 // Görev H: Kompozit görev (sola dön → sağa dön → yukarı çık → dur)
 void gorev_h() {
   yukariCik();
-  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(5000);
 
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
