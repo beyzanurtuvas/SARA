@@ -1,3 +1,13 @@
+// === ALACAKART PID Kontrollü Görev Senaryosu (Güncel PID ve PWM Değerleri ile) ===
+// Görev Akışı:
+// 1. Araç 10 saniye durur (motor kapalı)
+// 2. 2 saniye düz gider
+// 3. 5 saniye sağa döner (yaw)
+// 4. 5 saniye sola döner (yaw ters)
+// 5. Yunuslama (2s dalış, 2s düzleşme, 2s çıkış)
+// 6. Tüm işlemler PID kontrollü ve servo geçişleri yumuşatılmış şekilde yapılır.
+
+
 #include "ALACAKART.h"
 #include <SPI.h>
 #include <SD.h>
@@ -8,11 +18,10 @@ File Veri;
 // Sabitler
 const int CS_SD = PA4;
 const int SERVO_NEUTRAL = 90;
-const int SERVO_LEFT = 45;          // Saga donuste on servo sola, arka servo saga
-const int SERVO_RIGHT = 135;        // Sola donuste on servo saga, arka servo sola
-const int MOTOR_RUN_PWM = 2000;
+const int SERVO_LEFT = 45;
+const int SERVO_RIGHT = 135;
+const int MOTOR_RUN_PWM = 1000;
 const int MOTOR_STOP_PWM = 1490;
-const int MOTOR_LOW_PWM = 1600;
 
 // PID Sabitleri
 float Kp_yaw = 1.2, Ki_yaw = 0.0, Kd_yaw = 0.5;
@@ -25,14 +34,14 @@ float pitch_integral = 0, pitch_last_error = 0;
 unsigned long oncekiZaman = 0;
 
 void motorYavasArtir(int baslangicPWM, int hedefPWM) {
-  for (int pwm = baslangicPWM; pwm <= hedefPWM; pwm += 2) {
+  for (int pwm = baslangicPWM; pwm >= hedefPWM; pwm -= 2) {
     Veri_Kontrol.Servo_1(pwm);
     delay(10);
   }
 }
 
 void motorYavasAzalt(int baslangicPWM, int hedefPWM) {
-  for (int pwm = baslangicPWM; pwm >= hedefPWM; pwm -= 2) {
+  for (int pwm = baslangicPWM; pwm <= hedefPWM; pwm += 2) {
     Veri_Kontrol.Servo_1(pwm);
     delay(10);
   }
@@ -62,10 +71,10 @@ void setup() {
   Veri_Kontrol.Sensor_begin();
 
   Veri_Kontrol.Servo_1_begin();
-  Veri_Kontrol.Servo_2_begin(); // Pitch ön
-  Veri_Kontrol.Servo_3_begin(); // Yaw ön
-  Veri_Kontrol.Servo_4_begin(); // Pitch arka
-  Veri_Kontrol.Servo_5_begin(); // Yaw arka
+  Veri_Kontrol.Servo_2_begin();
+  Veri_Kontrol.Servo_3_begin();
+  Veri_Kontrol.Servo_4_begin();
+  Veri_Kontrol.Servo_5_begin();
 
   SPI.begin();
   if (SD.begin(CS_SD)) {
@@ -86,7 +95,6 @@ void loop() {
     while (true);
   }
 
-  // PID Hesaplama
   unsigned long simdi = millis();
   float dt = (simdi - oncekiZaman) / 1000.0;
   oncekiZaman = simdi;
@@ -129,23 +137,17 @@ void loop() {
     Veri.println(yaw_output);
   }
 
-  // Görev akışı başlıyor
-  // 0-10 sn bekleme
   Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
   delay(10000);
 
-  // Motoru yavaş başlat
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_RUN_PWM);
 
-  // 2 saniye düz git
   Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
   tumServolariNotrle();
   delay(2000);
 
-  // Motoru yavaşça durdur
   motorYavasAzalt(MOTOR_RUN_PWM, MOTOR_STOP_PWM);
 
-  // Sağ dönüş
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_RUN_PWM);
   Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
   Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
@@ -153,7 +155,6 @@ void loop() {
   delay(5000);
   motorYavasAzalt(MOTOR_RUN_PWM, MOTOR_STOP_PWM);
 
-  // Sol dönüş
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_RUN_PWM);
   Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
   Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
@@ -161,16 +162,14 @@ void loop() {
   delay(5000);
   motorYavasAzalt(MOTOR_RUN_PWM, MOTOR_STOP_PWM);
 
-  // Yunuslama başlıyor
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_RUN_PWM);
-  yavasServoGit(SERVO_RIGHT, SERVO_LEFT); // Aşağı eğ
+  yavasServoGit(SERVO_RIGHT, SERVO_LEFT);
   delay(2000);
-  yavasServoGit(SERVO_NEUTRAL, SERVO_NEUTRAL); // Düzleş
+  yavasServoGit(SERVO_NEUTRAL, SERVO_NEUTRAL);
   delay(2000);
-  yavasServoGit(SERVO_LEFT, SERVO_RIGHT); // Yukarı eğ
+  yavasServoGit(SERVO_LEFT, SERVO_RIGHT);
   delay(2000);
 
-  // Sistem durduruluyor
   motorYavasAzalt(MOTOR_RUN_PWM, MOTOR_STOP_PWM);
   tumServolariNotrle();
 
