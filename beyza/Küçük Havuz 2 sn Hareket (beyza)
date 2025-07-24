@@ -1,20 +1,38 @@
+/*
+  Görev Akışı:
+  - İlk 10 saniye bekleme (motor kapalı, sistem stabil)
+  - 10. saniyeden sonra motor çalışır ve araç yön değiştirerek ilerler:
+      * 0: Düz ilerleme (Yaw servolar nötr)
+      * 1: Sağa dönüş (Yaw servolar açılı)
+      * 2: Sola dönüş (Yaw servolar ters açılı)
+  - Her 2 saniyede bir yön değiştirilir (zikzak gibi hareket)
+  - Pitch ve Yaw eksenleri PID ile dengede tutulur
+  - Toplam 130 saniye sonunda sistem durur
+*/
 #include "ALACAKART.h"
 #include <SPI.h>
 #include <SD.h>
-#include <PID_v1.h>
-#include <MadgwickAHRS.h>
 
 ALACA_KART Veri_Kontrol;
-Madgwick filter;
 File Veri;
 
-const int CS_SD = PA4;
+// Servo ve PWM Sabitleri
 const int SERVO_NEUTRAL = 90;
 const int SERVO_LEFT = 60;
 const int SERVO_RIGHT = 120;
-const int MOTOR_RUN_PWM = 1000;  // Max hız
-const int MOTOR_STOP_PWM = 1490; // Durdurma PWM'i
+const int MOTOR_RUN_PWM = 1000;
+const int MOTOR_STOP_PWM = 1490;
 
+// PID sabitleri
+float Ref_Pitch = 0;
+float Ref_Yaw = 0;
+float pid_hata_pitch = 0, pid_out_pitch = 0;
+float pid_hata_yaw = 0, pid_out_yaw = 0;
+float Kp_pitch = 0.1, Ki_pitch = 0.0, Kd_pitch = 0.005;
+float Kp_yaw   = 0.1, Ki_yaw   = 0.0, Kd_yaw   = 0.005;
+float imax = 10;
+
+// Zaman değişkenleri
 unsigned long start_time = 0;
 unsigned long prev_maneuver_time = 0;
 unsigned long last_log_time = 0;
@@ -26,87 +44,83 @@ void setup() {
   Veri_Kontrol.Sensor_begin();
 
   // Servo motorlar başlatılıyor
-  Veri_Kontrol.Servo_1_begin(); // ESC
-  Veri_Kontrol.Servo_2_begin(); // Roll sol
-  Veri_Kontrol.Servo_3_begin(); // Pitch ön
-  Veri_Kontrol.Servo_4_begin(); // Roll sağ
-  Veri_Kontrol.Servo_5_begin(); // Pitch arka
+  Veri_Kontrol.Servo_1_begin();
+  Veri_Kontrol.Servo_2_begin();
+  Veri_Kontrol.Servo_3_begin();
+  Veri_Kontrol.Servo_4_begin();
+  Veri_Kontrol.Servo_5_begin();
 
-  // ESC yavaş başlatma
-  Serial.println(">>> ESC PWM yavaşça artırılıyor...");
-  for (int pwm = 1490; pwm <= MOTOR_RUN_PWM; pwm += 2) {
+  // PID sistemleri başlat
+  Veri_Kontrol.setup_PID_1(); // Yaw
+  Veri_Kontrol.setup_PID_2(); // Pitch
+
+  // ESC motoru başlatma (yavaş artış)
+  for (int pwm = MOTOR_STOP_PWM; pwm >= MOTOR_RUN_PWM; pwm -= 2) {
     Veri_Kontrol.Servo_1(pwm);
     delay(10);
   }
 
-  // SD Kart başlatma
+  // SD kart başlat
   SPI.begin();
-  if (SD.begin(CS_SD)) {
-    Serial.println("SD Kart Başlatıldı.");
+  if (SD.begin(PA4)) {
     Veri = SD.open("Veriler.txt", FILE_WRITE);
-    if (Veri) Veri.println("Zaman,Yaw,Pitch,Roll");
-  } else {
-    Serial.println("SD Kart Başlatılamadı!");
+    if (Veri) Veri.println("Zaman,Pitch,Yaw,Out_Pitch,Out_Yaw");
   }
 
   start_time = millis();
-  prev_maneuver_time = start_time + 10000; // 10s sonra yön değişiklikleri başlasın
+  prev_maneuver_time = start_time + 10000;
 }
 
 void loop() {
   unsigned long now = millis();
   float gecen_sure = (now - start_time) / 1000.0;
 
-  // IMU Verileri okuma ve Madgwick filtre ile yönelim hesaplama
-  float ax = Veri_Kontrol.LIA_ACC_X();
-  float ay = Veri_Kontrol.LIA_ACC_Y();
-  float az = Veri_Kontrol.LIA_ACC_Z();
-  float gx = Veri_Kontrol.GYRO_X();
-  float gy = Veri_Kontrol.GYRO_Y();
-  float gz = Veri_Kontrol.GYRO_Z();
+  // Sensör verileri
+  float Pitch = Veri_Kontrol.Euler_Y();
+  float Yaw   = Veri_Kontrol.Euler_Z();
+  float Gyro_y = Veri_Kontrol.GYRO_Y();
+  float Gyro_z = Veri_Kontrol.GYRO_Z();
 
-  filter.updateIMU(gx, gy, gz, ax, ay, az);
-  float roll = filter.getRoll();
-  float pitch = filter.getPitch();
-  float yaw = filter.getYaw();
+  // PID hesaplamaları
+  pid_hata_pitch = (Ref_Pitch - Pitch) * 5 - Gyro_y;
+  pid_out_pitch  = Veri_Kontrol.PID_2(pid_hata_pitch, Kp_pitch, Ki_pitch, Kd_pitch, imax);
 
-  // İlk 10 saniye bekleme (motor kapalı)
+  pid_hata_yaw = (Ref_Yaw - Yaw) * 5 - Gyro_z;
+  pid_out_yaw  = Veri_Kontrol.PID_1(pid_hata_yaw, Kp_yaw, Ki_yaw, Kd_yaw, imax);
+
+  // Servo uygulamaları
+  Veri_Kontrol.Servo_2_Write(90 + pid_out_pitch);
+  Veri_Kontrol.Servo_4_Write(90 - pid_out_pitch);
+  Veri_Kontrol.Servo_3_Write(90 + pid_out_yaw);
+  Veri_Kontrol.Servo_5_Write(90 - pid_out_yaw);
+
+  // Görev Akışı
   if (now - start_time < 10000) {
-    Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
+    Veri_Kontrol.Servo_1(MOTOR_STOP_PWM); // Bekleme süresi
     Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
     Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
-    Veri_Kontrol.Servo_2_Write(SERVO_NEUTRAL);
-    Veri_Kontrol.Servo_4_Write(SERVO_NEUTRAL);
   } else {
-    // ESC’ye sabit PWM gönder (motor aktif)
-    Veri_Kontrol.Servo_1(MOTOR_RUN_PWM);
+    Veri_Kontrol.Servo_1(MOTOR_RUN_PWM); // Motor çalıştır
 
-    // Her 2 saniyede bir yön değiştir
     if (now - prev_maneuver_time >= 2000) {
       prev_maneuver_time = now;
       hareket_durumu = (hareket_durumu + 1) % 3;
     }
 
     switch (hareket_durumu) {
-      case 0:
-        Veri_Kontrol.Servo_3_Write(SERVO_NEUTRAL);
-        Veri_Kontrol.Servo_5_Write(SERVO_NEUTRAL);
+      case 0: // Düz
+        Ref_Yaw = 0;
         break;
-      case 1:
-        Veri_Kontrol.Servo_3_Write(SERVO_LEFT);
-        Veri_Kontrol.Servo_5_Write(SERVO_RIGHT);
+      case 1: // Sağa dön
+        Ref_Yaw = -30;
         break;
-      case 2:
-        Veri_Kontrol.Servo_3_Write(SERVO_RIGHT);
-        Veri_Kontrol.Servo_5_Write(SERVO_LEFT);
+      case 2: // Sola dön
+        Ref_Yaw = 30;
         break;
     }
-
-    Veri_Kontrol.Servo_2_Write(SERVO_NEUTRAL);
-    Veri_Kontrol.Servo_4_Write(SERVO_NEUTRAL);
   }
 
-  // 2 dakika (120s) sonunda sistem durdurulur
+  // Süre dolunca sistem kapanır
   if (gecen_sure >= 130) {
     Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
     Veri_Kontrol.Servo_2_Write(SERVO_NEUTRAL);
@@ -117,25 +131,24 @@ void loop() {
     while (true);
   }
 
-  // SD karta verileri 100ms'de bir kaydet
+  // SD karta log yaz
   if (now - last_log_time >= 100) {
     last_log_time = now;
     if (Veri) {
-      Veri.print(gecen_sure, 2);
-      Veri.print(",");
-      Veri.print(yaw, 2);
-      Veri.print(",");
-      Veri.print(pitch, 2);
-      Veri.print(",");
-      Veri.println(roll, 2);
+      Veri.print(gecen_sure, 2); Veri.print(",");
+      Veri.print(Pitch, 2);      Veri.print(",");
+      Veri.print(Yaw, 2);        Veri.print(",");
+      Veri.print(pid_out_pitch, 2); Veri.print(",");
+      Veri.println(pid_out_yaw, 2);
     }
   }
 
-  // Telemetri
+  // Seri monitöre veri gönder
   Serial.print("Zaman: "); Serial.print(gecen_sure);
-  Serial.print(" s | Yaw: "); Serial.print(yaw, 2);
-  Serial.print(" | Pitch: "); Serial.print(pitch, 2);
-  Serial.print(" | Roll: "); Serial.println(roll, 2);
+  Serial.print(" s | Pitch: "); Serial.print(Pitch);
+  Serial.print(" | Yaw: "); Serial.print(Yaw);
+  Serial.print(" | Out_Pitch: "); Serial.print(pid_out_pitch);
+  Serial.print(" | Out_Yaw: "); Serial.println(pid_out_yaw);
 
   delay(20);
 }
