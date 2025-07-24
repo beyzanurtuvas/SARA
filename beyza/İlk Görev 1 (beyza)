@@ -1,27 +1,53 @@
-// ALACAKART Kontrollü PID Sistemli Sualtı Aracı Kodu
+/*
+  0–10 sn   : Bekleme süresi (motor kapalı, stabil)
+  10–20 sn  : Düz ileri hareket (PID ile yön ve derinlik sabitlenir)
+  20–25 sn  : 90° sağa dönüş (yaw servoları ile yön değişimi)
+  25–30 sn  : 5 sn düz ilerleme (PID sabit yön)
+  30–35 sn  : Tekrar 90° sağa dönüş
+  35–40 sn  : 5 sn dalış (pitch servoları aşağı eğilir)
+  40–45 sn  : 5 sn yukarı çıkış (pitch servoları yukarı eğilir)
+  45+  sn   : Araç durur (motor durur, tüm servo açılar nötrlenir)
+
+  Not: Tüm görevler sırasında:
+  - Derinlik, Pitch ve Yaw eksenleri için PID kontrolü sürekli çalışır.
+  - Veriler SD karta loglanır (zaman, açı, PID çıkışları, servo açıları, motor PWM).
+*/
 #include "ALACAKART.h"
-#include <PID_v1.h>
-#include <MadgwickAHRS.h>
 #include <SPI.h>
 #include <SD.h>
 
 ALACA_KART Veri_Kontrol;
-Madgwick filter;
 
-// PID Ayarları
-// Derinlik PID
-double depthSetpoint = 1.5, depthInput, depthOutput;
-PID depthPID(&depthInput, &depthOutput, &depthSetpoint, 6.0, 0.02, 2.0, DIRECT);
+// Sensör verileri
+float Pitch_Aci, Yaw_Aci, Alt;
+float Gyro_y, Gyro_z;
 
-// Servo ve PWM Sabitleri
+// PID hedef değerleri
+float Ref_Pitch = 0;
+float Ref_Yaw   = 0;
+float Ref_Alt   = 1.5; // Hedef derinlik
+
+// PID hata ve çıkışları
+float pitch_error, yaw_error, depth_error;
+float pitch_integral = 0, yaw_integral = 0, depth_integral = 0;
+float pitch_last_error = 0, yaw_last_error = 0, depth_last_error = 0;
+float pid_out_pitch, pid_out_yaw, pid_out_depth;
+float imax = 10;
+
+// PID kazançları
+float Kp_pitch = 0.1, Ki_pitch = 0.0, Kd_pitch = 0.005;
+float Kp_yaw   = 0.1, Ki_yaw   = 0.0, Kd_yaw   = 0.005;
+float Kp_depth = 1.2, Ki_depth = 0.03, Kd_depth = 0.07;
+
+// PWM sabitleri
 const int SERVO_NEUTRAL = 90;
 const int SERVO_MIN = 0;
 const int SERVO_MAX = 180;
 const int MOTOR_STOP_PWM = 1490;
 const int MOTOR_RUN_PWM = 1000;
-const int MOTOR_TURN_PWM = 1250;  // Dönüşlerde hafif PWM
+const int MOTOR_TURN_PWM = 1250;
 
-// Zamanlayıcılar
+// Zaman
 unsigned long startTime = 0;
 unsigned long logTime = 0;
 
@@ -29,16 +55,15 @@ unsigned long logTime = 0;
 File Veri;
 const int CS_SD = PA4;
 
-// Yardımcı fonksiyon: servo açısını sınırla ve uygula
+// Servo güvenli sınırla
 void setServo(int pin, int value) {
   value = constrain(value, SERVO_MIN, SERVO_MAX);
   switch (pin) {
-    case 1: Veri_Kontrol.Servo_1(value); break; // ESC için
+    case 1: Veri_Kontrol.Servo_1(value); break;
     case 2: Veri_Kontrol.Servo_2_Write(value); break;
     case 3: Veri_Kontrol.Servo_3_Write(value); break;
     case 4: Veri_Kontrol.Servo_4_Write(value); break;
     case 5: Veri_Kontrol.Servo_5_Write(value); break;
-    default: break;
   }
 }
 
@@ -46,28 +71,26 @@ void setup() {
   Serial.begin(57600);
   Veri_Kontrol.Sensor_begin();
 
-  // Servo başlat
-  Veri_Kontrol.Servo_1_begin(); // ESC
-  Veri_Kontrol.Servo_2_begin(); // Depth sol
-  Veri_Kontrol.Servo_3_begin(); // Yaw üst
-  Veri_Kontrol.Servo_4_begin(); // Depth sağ
-  Veri_Kontrol.Servo_5_begin(); // Yaw alt
+  Veri_Kontrol.Servo_1_begin();
+  Veri_Kontrol.Servo_2_begin();
+  Veri_Kontrol.Servo_3_begin();
+  Veri_Kontrol.Servo_4_begin();
+  Veri_Kontrol.Servo_5_begin();
+
+  Veri_Kontrol.setup_PID_1(); // Yaw PID
+  Veri_Kontrol.setup_PID_2(); // Pitch PID
 
   // ESC yavaş başlatma
-  for (int pwm = 1490; pwm >= 1200; pwm -= 2) {
+  for (int pwm = MOTOR_STOP_PWM; pwm >= 1200; pwm -= 2) {
     Veri_Kontrol.Servo_1(pwm);
     delay(10);
   }
 
-  // PID başlat
-  depthPID.SetMode(AUTOMATIC);
-  depthPID.SetOutputLimits(-30, 30);
-
-  // SD kart
   SPI.begin();
   SD.begin(CS_SD);
   Veri = SD.open("veri_log.csv", FILE_WRITE);
-  if (Veri) Veri.println("Zaman,Derinlik,PIDOut,Servo2,Servo4,MotorPWM,Kp,Ki,Kd");
+  if (Veri)
+    Veri.println("Zaman,Derinlik,Pitch,Yaw,OutDepth,OutPitch,OutYaw,MotorPWM");
 
   startTime = millis();
 }
@@ -76,71 +99,83 @@ void loop() {
   unsigned long now = millis();
   float elapsed = (now - startTime) / 1000.0;
 
-  // Derinlik oku
-  depthInput = Veri_Kontrol.Alt();
-  depthPID.Compute();
+  // Sensör okuma
+  Alt      = Veri_Kontrol.Alt();
+  Pitch_Aci = Veri_Kontrol.Euler_Y();
+  Yaw_Aci   = Veri_Kontrol.Euler_Z();
+  Gyro_y    = Veri_Kontrol.GYRO_Y();
+  Gyro_z    = Veri_Kontrol.GYRO_Z();
 
-  // Derinlik servolarını ayarla (Servo_2 sol, Servo_4 sağ)
-  int servo2 = constrain(SERVO_NEUTRAL + depthOutput, SERVO_MIN, SERVO_MAX);
-  int servo4 = constrain(SERVO_NEUTRAL - depthOutput, SERVO_MIN, SERVO_MAX);
-  setServo(2, servo2);
-  setServo(4, servo4);
+  // --- PID Hesaplamaları ---
+
+  // Derinlik PID
+  depth_error = Ref_Alt - Alt;
+  depth_integral += depth_error;
+  depth_integral = constrain(depth_integral, -imax, imax);
+  pid_out_depth = Kp_depth * depth_error + Ki_depth * depth_integral + Kd_depth * (depth_error - depth_last_error);
+  depth_last_error = depth_error;
+
+  // Pitch PID
+  pitch_error = (Ref_Pitch - Pitch_Aci) * 5 - Gyro_y;
+  pitch_integral += pitch_error;
+  pitch_integral = constrain(pitch_integral, -imax, imax);
+  pid_out_pitch = Kp_pitch * pitch_error + Ki_pitch * pitch_integral + Kd_pitch * (pitch_error - pitch_last_error);
+  pitch_last_error = pitch_error;
+
+  // Yaw PID
+  yaw_error = (Ref_Yaw - Yaw_Aci) * 5 - Gyro_z;
+  yaw_integral += yaw_error;
+  yaw_integral = constrain(yaw_integral, -imax, imax);
+  pid_out_yaw = Kp_yaw * yaw_error + Ki_yaw * yaw_integral + Kd_yaw * (yaw_error - yaw_last_error);
+  yaw_last_error = yaw_error;
+
+  // PID çıktılarının servolara uygulanması
+  setServo(2, SERVO_NEUTRAL + pid_out_depth);
+  setServo(4, SERVO_NEUTRAL - pid_out_depth);
+  setServo(3, SERVO_NEUTRAL + pid_out_yaw);
+  setServo(5, SERVO_NEUTRAL - pid_out_yaw);
 
   // Görev senaryosu
   int motor_pwm = MOTOR_STOP_PWM;
   if (elapsed < 10) {
-    // Bekleme süreci
     motor_pwm = MOTOR_STOP_PWM;
   } else if (elapsed < 20) {
-    // Düz ilerleme
     motor_pwm = MOTOR_RUN_PWM;
-    setServo(3, SERVO_NEUTRAL);
-    setServo(5, SERVO_NEUTRAL);
   } else if (elapsed < 25) {
-    // 90 derece sağa dönme (arka üst-alt yaw kullanılır)
     motor_pwm = MOTOR_TURN_PWM;
-    setServo(3, 60); // Üst yaw sağa
-    setServo(5, 120); // Alt yaw sola
+    setServo(3, 60);  // sağa dönüş
+    setServo(5, 120);
   } else if (elapsed < 30) {
-    // 5 sn ileri
     motor_pwm = MOTOR_RUN_PWM;
-    setServo(3, SERVO_NEUTRAL);
-    setServo(5, SERVO_NEUTRAL);
   } else if (elapsed < 35) {
-    // Tekrar 90 derece sağa dön
     motor_pwm = MOTOR_TURN_PWM;
     setServo(3, 60);
     setServo(5, 120);
   } else if (elapsed < 40) {
-    // 5 sn dalış
     motor_pwm = MOTOR_RUN_PWM;
-    setServo(2, 60);
+    setServo(2, 60);  // dalış
     setServo(4, 120);
   } else if (elapsed < 45) {
-    // 5 sn yukarı çıkış
     motor_pwm = MOTOR_RUN_PWM;
-    setServo(2, 120);
+    setServo(2, 120); // çıkış
     setServo(4, 60);
   } else {
     motor_pwm = MOTOR_STOP_PWM;
-    setServo(3, SERVO_NEUTRAL);
-    setServo(5, SERVO_NEUTRAL);
   }
 
   Veri_Kontrol.Servo_1(motor_pwm);
 
-  // SD karta kaydet
+  // SD loglama
   if (millis() - logTime >= 100) {
     if (Veri) {
       Veri.print(elapsed, 2); Veri.print(",");
-      Veri.print(depthInput, 2); Veri.print(",");
-      Veri.print(depthOutput, 2); Veri.print(",");
-      Veri.print(servo2); Veri.print(",");
-      Veri.print(servo4); Veri.print(",");
-      Veri.print(motor_pwm); Veri.print(",");
-      Veri.print(depthPID.GetKp()); Veri.print(",");
-      Veri.print(depthPID.GetKi()); Veri.print(",");
-      Veri.println(depthPID.GetKd());
+      Veri.print(Alt, 2); Veri.print(",");
+      Veri.print(Pitch_Aci, 2); Veri.print(",");
+      Veri.print(Yaw_Aci, 2); Veri.print(",");
+      Veri.print(pid_out_depth, 2); Veri.print(",");
+      Veri.print(pid_out_pitch, 2); Veri.print(",");
+      Veri.print(pid_out_yaw, 2); Veri.print(",");
+      Veri.println(motor_pwm);
     }
     logTime = millis();
   }
