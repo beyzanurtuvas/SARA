@@ -128,7 +128,7 @@ void gorev_d() {
 }
 
 
-/* 
+
 //aşağı 
 
 void gorev_e() { 
@@ -139,7 +139,7 @@ void gorev_e() {
   Veri_Kontrol.Servo_4_Write(45);
   delay(5000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
-}  */
+}  
 
 
 //yukarı
@@ -166,6 +166,10 @@ void gorev_g() {
 
   motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
   tumServolariNotrle();
+  delay(5000);
+
+  Veri_Kontrol.Servo_2_Write(45);
+  Veri_Kontrol.Servo_4_Write(135);
   delay(5000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
 }
