@@ -59,6 +59,8 @@ void PID_Guncelle() {
 
 //düz
 void gorev_a() {
+tumServolariNotrle();
+  delay(1000);
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(5000);
 
@@ -66,10 +68,15 @@ void gorev_a() {
   Veri_Kontrol.Servo_4_Write(135);
   delay(5000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+
+tumServolariNotrle();
+  delay(5000);
 }
 
 //sol
 void gorev_b() {
+tumServolariNotrle();
+  delay(1000);
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
 
@@ -87,10 +94,14 @@ void gorev_b() {
   delay(5000);
  
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+tumServolariNotrle();
+  delay(1000);
 }
 
 //sağ
 void gorev_c() {
+tumServolariNotrle();
+  delay(1000);
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
 
@@ -107,11 +118,15 @@ void gorev_c() {
   Veri_Kontrol.Servo_4_Write(135);
   delay(5000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+tumServolariNotrle();
+  delay(1000);
  
 }
 
 //yunuslama
 void gorev_d() {   
+tumServolariNotrle();
+  delay(1000);
   Veri_Kontrol.Servo_2_Write(135);
   Veri_Kontrol.Servo_4_Write(45);
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
@@ -125,6 +140,8 @@ void gorev_d() {
   Veri_Kontrol.Servo_4_Write(135);
   delay(7000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+tumServolariNotrle();
+  delay(1000);
 }
 
 
@@ -132,6 +149,8 @@ void gorev_d() {
 //aşağı 
 
 void gorev_e() { 
+tumServolariNotrle();
+  delay(1000);
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
 
@@ -139,11 +158,15 @@ void gorev_e() {
   Veri_Kontrol.Servo_4_Write(45);
   delay(5000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+tumServolariNotrle();
+  delay(1000);
 }  
 
 
 //yukarı
 void gorev_f() {  
+tumServolariNotrle();
+  delay(1000);
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
 
@@ -152,10 +175,14 @@ void gorev_f() {
   delay(5000);
   
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+tumServolariNotrle();
+  delay(1000);
 }
 
 //u dönüşü
 void gorev_g() {
+tumServolariNotrle();
+  delay(1000);
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(5000);
 
@@ -172,10 +199,14 @@ void gorev_g() {
   Veri_Kontrol.Servo_4_Write(135);
   delay(5000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+tumServolariNotrle();
+  delay(1000);
 }
 
 // Karma Manevra
 void gorev_h() {
+tumServolariNotrle();
+  delay(1000);
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(5000);
 
@@ -202,6 +233,8 @@ void gorev_h() {
   delay(5000);
 
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+tumServolariNotrle();
+  delay(1000);
 }
 
 // === Kurulum ve Döngü ===
