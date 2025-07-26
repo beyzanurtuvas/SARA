@@ -17,11 +17,11 @@ const int SISTEM_BASLAMA_GECIKMESI = 5000;
 const int GOREV_ARASI_GECIKME = 20000;
 
 void setup() {
-  servo1.attach(3);
-  servo2.attach(5);
-  servo3.attach(6);
-  servo4.attach(9);
-  servo5.attach(10);
+  servo1.attach(3);// ESC 
+  servo2.attach(5);//**2
+  servo3.attach(6);//**3
+  servo4.attach(9);//**4
+  servo5.attach(10);//Sola dönüş **5
 
   // Motor ve servo sıfırlama
   servo1.writeMicroseconds(MOTOR_STOP_PWM);
