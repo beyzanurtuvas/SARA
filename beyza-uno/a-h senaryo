@@ -1,0 +1,206 @@
+#include <Servo.h>
+
+// Servo nesneleri
+Servo servo1; // ESC (itici motor)
+Servo servo2; // pitch
+Servo servo3; // yaw sağ
+Servo servo4; // pitch ters
+Servo servo5; // yaw sol
+
+// PWM sabitleri (TERS sistem)
+const int MOTOR_STOP_PWM = 1490;
+const int MOTOR_MAX_PWM  = 1000;
+const int MOTOR_DONUS_PWM = 1250;
+
+// Başlangıç gecikmesi
+const int SISTEM_BASLAMA_GECIKMESI = 5000;
+const int GOREV_ARASI_GECIKME = 20000;
+
+void setup() {
+  servo1.attach(3);
+  servo2.attach(5);
+  servo3.attach(6);
+  servo4.attach(9);
+  servo5.attach(10);
+
+  // Motor ve servo sıfırlama
+  servo1.writeMicroseconds(MOTOR_STOP_PWM);
+  servo2.write(90);
+  servo3.write(90);
+  servo4.write(90);
+  servo5.write(90);
+  delay(2000);
+
+  delay(SISTEM_BASLAMA_GECIKMESI); // Sistem açılış beklemesi
+
+  // Görevler art arda çalıştırılır
+  gorev_a();
+  delay(GOREV_ARASI_GECIKME);
+
+  gorev_b();
+  delay(GOREV_ARASI_GECIKME);
+
+  gorev_c();
+  delay(GOREV_ARASI_GECIKME);
+
+  gorev_d();
+  delay(GOREV_ARASI_GECIKME);
+
+  gorev_e();
+  delay(GOREV_ARASI_GECIKME);
+
+  gorev_f();
+  delay(GOREV_ARASI_GECIKME);
+
+  gorev_g();
+  delay(GOREV_ARASI_GECIKME);
+
+  gorev_h();
+}
+
+void loop() {
+  // Görevler sadece bir kez çalıştığı için loop boş
+}
+
+// ---------------- GÖREVLER ----------------
+
+void gorev_a() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+}
+
+void gorev_b() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  delay(3000);
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  servo3.write(135);
+  servo5.write(45);
+  delay(1500);
+
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  tumServolariNotrle();
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+}
+
+void gorev_c() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  delay(3000);
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  servo3.write(45);
+  servo5.write(135);
+  delay(1500);
+
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  tumServolariNotrle();
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+}
+
+void gorev_d() {
+  servo2.write(135);
+  servo4.write(45);
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  delay(5000);
+
+  servo2.write(90);
+  servo4.write(90);
+  delay(3000);
+
+  servo2.write(45);
+  servo4.write(135);
+  delay(7000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+}
+
+void gorev_e() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  delay(3000);
+
+  servo2.write(135);
+  servo4.write(45);
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+}
+
+void gorev_f() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  delay(3000);
+
+  servo2.write(45);
+  servo4.write(135);
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+}
+
+void gorev_g() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  delay(5000);
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  servo3.write(135);
+  servo5.write(45);
+  delay(1500);
+
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  tumServolariNotrle();
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+}
+
+void gorev_h() {
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  delay(5000);
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  servo3.write(45);
+  servo5.write(135);
+  delay(1500);
+
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  tumServolariNotrle();
+  delay(5000);
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  servo3.write(135);
+  servo5.write(45);
+  delay(1500);
+
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  tumServolariNotrle();
+  delay(5000);
+
+  servo2.write(45);
+  servo4.write(135);
+  delay(5000);
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+}
+
+// ---------------- MOTOR KONTROL ----------------
+
+void motorYavasArtir(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm >= hedefPWM; pwm -= 2) {
+    servo1.writeMicroseconds(pwm);
+    delay(10);
+  }
+}
+
+void motorYavasAzalt(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm <= hedefPWM; pwm += 2) {
+    servo1.writeMicroseconds(pwm);
+    delay(10);
+  }
+}
+
+// --------------- SERVO NÖTR ---------------------
+
+void tumServolariNotrle() {
+  servo2.write(90);
+  servo3.write(90);
+  servo4.write(90);
+  servo5.write(90);
+}
