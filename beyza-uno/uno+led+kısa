@@ -1,0 +1,183 @@
+#include <Servo.h>
+
+// ------------ SERVO NESNELERİ -------------
+Servo servo1;     // ESC (itici motor)
+Servo servo2;     // Pitch kontrol (yukarı)
+Servo servo3;     // Yaw sağ
+Servo servo4;     // Pitch ters (aşağı)
+Servo servo5;     // Yaw sol
+Servo servoLED;   // PWM LED çıkışı
+
+// ------------ PWM SABİTLERİ --------------
+const int MOTOR_STOP_PWM  = 1490;
+const int MOTOR_MAX_PWM   = 1000;
+const int MOTOR_DONUS_PWM = 1250;
+
+const int LED_PWM_ACIK    = 1900;
+const int LED_PWM_KAPALI  = 1100;
+
+// ------------ PINLER ---------------------
+const int ledPin = 11; // Harici LED’in bağlandığı PWM pin
+
+// ------------ ZAMAN SABİTLERİ ------------
+const int SISTEM_BASLAMA_GECIKMESI = 5000;
+const int GOREV_ARASI_GECIKME      = 20000;
+
+// ------------ SETUP ----------------------
+void setup() {
+  // Servo pinleri tanımlanır
+  servo1.attach(3);
+  servo2.attach(5);
+  servo3.attach(6);
+  servo4.attach(9);
+  servo5.attach(10);
+  servoLED.attach(ledPin);
+
+  // Başlangıç durumu
+  servo1.writeMicroseconds(MOTOR_STOP_PWM);
+  tumServolariNotrle();
+  ledPWMSon();
+  delay(2000);
+  delay(SISTEM_BASLAMA_GECIKMESI);
+
+  // Görevler sırasıyla çalıştırılır
+  gorev_a(); delay(GOREV_ARASI_GECIKME);
+  gorev_b(); delay(GOREV_ARASI_GECIKME);
+  gorev_c(); delay(GOREV_ARASI_GECIKME);
+  gorev_d(); delay(GOREV_ARASI_GECIKME);
+
+}
+
+void loop() {
+  // Görevler sadece setup’ta bir defa çalışır
+}
+
+// ------------ LED FONKSİYONLARI ----------
+void ledPWMYak() {
+  servoLED.writeMicroseconds(LED_PWM_ACIK);
+}
+
+void ledPWMSon() {
+  servoLED.writeMicroseconds(LED_PWM_KAPALI);
+}
+
+// ------------ SERVOLARI NÖTRLE ----------
+void tumServolariNotrle() {
+  servo2.write(90);
+  servo3.write(90);
+  servo4.write(90);
+  servo5.write(90);
+}
+
+// ------------ MOTOR GEÇİŞLERİ ------------
+void motorYavasArtir(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm >= hedefPWM; pwm -= 2) {
+    servo1.writeMicroseconds(pwm);
+    delay(10);
+  }
+}
+
+void motorYavasAzalt(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm <= hedefPWM; pwm += 2) {
+    servo1.writeMicroseconds(pwm);
+    delay(10);
+  }
+}
+
+// ------------ GÖREV a --------------------
+void gorev_a() {
+  tumServolariNotrle();
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  delay(3000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  servo3.write(135);
+  servo5.write(45);
+  delay(1500);
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  tumServolariNotrle();
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+// ------------ GÖREV b --------------------
+void gorev_b() {
+  tumServolariNotrle();
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  delay(3000);
+  servo2.write(135);
+  servo4.write(45);
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  delay(3000);
+  servo2.write(45);
+  servo4.write(135);
+  delay(5000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+}
+
+// ------------ GÖREV c --------------------
+void gorev_c() {
+  tumServolariNotrle();
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  delay(3000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  delay(300);
+
+  for (int i = 0; i < 3; i++) {
+    servo3.write(45);
+    servo5.write(135);
+    motorYavasArtir(MOTOR_STOP_PWM, MOTOR_DONUS_PWM);
+    delay(1500);
+    tumServolariNotrle();
+    motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+    delay(2000);
+    motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+    delay(300);
+  }
+
+  servo2.write(135);
+  servo4.write(45);
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  delay(3000);
+  tumServolariNotrle();
+  servo2.write(45);
+  servo4.write(135);
+  delay(3000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+
+  ledPWMYak();
+  tumServolariNotrle();
+  delay(1000);
+  ledPWMSon();
+}
+
+
+
+// ------------ GÖREV D --------------------
+void gorev_d() {
+  tumServolariNotrle();
+  servo2.write(135);
+  servo4.write(45);
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  delay(5000);
+  servo2.write(90);
+  servo4.write(90);
+  delay(3000);
+  servo2.write(45);
+  servo4.write(135);
+  delay(7000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+
+  ledPWMYak();
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_DONUS_PWM);
+  delay(3000);
+  motorYavasAzalt(MOTOR_DONUS_PWM, MOTOR_STOP_PWM);
+  ledPWMSon();
+  tumServolariNotrle();
+}
+
