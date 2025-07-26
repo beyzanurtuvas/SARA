@@ -65,12 +65,15 @@ void loop() {
 // ---------------- GÖREVLER ----------------
 
 void gorev_a() {
+  tumServolariNotrle();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
-  delay(5000);
+  delay(3000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
 }
 
 void gorev_b() {
+  tumServolariNotrle();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
 
@@ -86,6 +89,7 @@ void gorev_b() {
 }
 
 void gorev_c() {
+  tumServolariNotrle();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
 
@@ -101,6 +105,7 @@ void gorev_c() {
 }
 
 void gorev_d() {
+  tumServolariNotrle();
   servo2.write(135);
   servo4.write(45);
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
@@ -114,9 +119,11 @@ void gorev_d() {
   servo4.write(135);
   delay(7000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
 }
 
 void gorev_e() {
+  tumServolariNotrle();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
 
@@ -124,9 +131,11 @@ void gorev_e() {
   servo4.write(45);
   delay(5000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
 }
 
 void gorev_f() {
+  tumServolariNotrle();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
 
@@ -134,9 +143,11 @@ void gorev_f() {
   servo4.write(135);
   delay(5000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
 }
 
 void gorev_g() {
+  tumServolariNotrle();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(5000);
 
@@ -152,6 +163,7 @@ void gorev_g() {
 }
 
 void gorev_h() {
+  tumServolariNotrle();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(5000);
 
@@ -178,6 +190,7 @@ void gorev_h() {
   delay(5000);
 
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
 }
 
 // ---------------- MOTOR KONTROL ----------------
