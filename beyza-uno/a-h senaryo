@@ -66,11 +66,69 @@ void loop() {
 
 void gorev_a() {
   tumServolariNotrle();
+
+  // Düz git 3 saniye - Sağa dön ve 2 saniye ilerle - Yine sağa dön ve 2 saniye git - Son bir sağa dönüş ve 2 saniye düz git - Yunuslama
+
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
   tumServolariNotrle();
+  delay(300);  // kısa bekleme
+
+  servo3.write(45);
+  servo5.write(135);
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_DONUS_PWM);
+  delay(1500); // dönüş süresi
+  tumServolariNotrle();
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  delay(2000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+  delay(300);
+
+  servo3.write(45);
+  servo5.write(135);
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_DONUS_PWM);
+  delay(1500);
+  tumServolariNotrle();
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  delay(2000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+  delay(300);
+
+  servo3.write(45);
+  servo5.write(135);
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_DONUS_PWM);
+  delay(1500);
+  tumServolariNotrle();
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  delay(2000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+  delay(300);
+
+  // Yukarı - aşağı - yukarı hareket
+  servo2.write(135); // yukarı bak
+  servo4.write(45);
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  delay(1000);
+
+  servo2.write(45);  // aşağı bak
+  servo4.write(135);
+  delay(1000);
+
+  servo2.write(135); // tekrar yukarı
+  servo4.write(45);
+  delay(1000);
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+
+  // 6. Su yüzeyine çıkış (LED yakabiliriz burada)
+  digitalWrite(13, HIGH);
+  tumServolariNotrle();
+  delay(1000);
 }
+
 
 void gorev_b() {
   tumServolariNotrle();
