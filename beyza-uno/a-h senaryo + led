@@ -6,38 +6,42 @@ Servo servo2; // pitch kontrol (yukarı)
 Servo servo3; // yaw sağ
 Servo servo4; // pitch ters (aşağı)
 Servo servo5; // yaw sol
+Servo servoLED; // PWM LED çıkışı (örneğin D11’e bağlı)
 
 // ------------ PWM SABİTLERİ --------------
-const int MOTOR_STOP_PWM  = 1490;  // ESC için durma sinyali (TERS sistem)
-const int MOTOR_MAX_PWM   = 1000;  // ESC için maksimum ters hız
-const int MOTOR_DONUS_PWM = 1250;  // ESC için orta seviye hız (dönüş için)
+const int MOTOR_STOP_PWM  = 1490;
+const int MOTOR_MAX_PWM   = 1000;
+const int MOTOR_DONUS_PWM = 1250;
+
+// LED PWM değerleri (Alacakart mantığına uygun)
+const int LED_PWM_ACIK  = 1900;
+const int LED_PWM_KAPALI = 1100;
+
+// ------------ PINLER ---------------------
+const int ledPin = 11; // Harici LED’in bağlandığı PWM destekli pin
 
 // ------------ ZAMANLAR -------------------
-const int SISTEM_BASLAMA_GECIKMESI = 5000;   // sistem açılış bekleme süresi
-const int GOREV_ARASI_GECIKME      = 20000;  // görevler arası bekleme süresi
-
-// ------------ LED PINİ -------------------
-const int ledPin = 13; // Arduino UNO'nun dahili LED pini veya harici LED
+const int SISTEM_BASLAMA_GECIKMESI = 5000;
+const int GOREV_ARASI_GECIKME      = 20000;
 
 // ------------ SETUP ----------------------
 void setup() {
-  // Servo pin tanımlamaları
+  // Servo pin atamaları
   servo1.attach(3);   // ESC
-  servo2.attach(5);   // Pitch yukarı
+  servo2.attach(5);   // Pitch
   servo3.attach(6);   // Yaw sağ
-  servo4.attach(9);   // Pitch aşağı (ters)
+  servo4.attach(9);   // Pitch ters
   servo5.attach(10);  // Yaw sol
+  servoLED.attach(ledPin); // LED PWM çıkışı
 
-  pinMode(ledPin, OUTPUT); // LED çıkış olarak ayarlanır
-
-  // Başlangıçta motor ve servo sıfırlama
   servo1.writeMicroseconds(MOTOR_STOP_PWM);
   tumServolariNotrle();
-  delay(2000);  // ESC'nin hazır olması için
+  ledPWMSon();
+  delay(2000);
 
-  delay(SISTEM_BASLAMA_GECIKMESI); // sistem başlama gecikmesi
+  delay(SISTEM_BASLAMA_GECIKMESI);
 
-  // Görev sıralaması (a ve g yer değiştirdi!)
+  // Görevler
   gorev_g(); delay(GOREV_ARASI_GECIKME);
   gorev_b(); delay(GOREV_ARASI_GECIKME);
   gorev_c(); delay(GOREV_ARASI_GECIKME);
@@ -49,7 +53,16 @@ void setup() {
 }
 
 void loop() {
-  // Görevler sadece bir defa çalışacak
+  // Görevler bir kez setup'ta çalışır
+}
+
+// ------------ LED PWM KONTROL -------------
+void ledPWMYak() {
+  servoLED.writeMicroseconds(LED_PWM_ACIK); // LED açık (parlak)
+}
+
+void ledPWMSon() {
+  servoLED.writeMicroseconds(LED_PWM_KAPALI); // LED kapalı
 }
 
 // ------------ GÖREV A (eski G) ------------
@@ -74,15 +87,12 @@ void gorev_a() {
 // ------------ GÖREV G (eski A) ------------
 void gorev_g() {
   tumServolariNotrle();
-
-  // Düz git 3 saniye
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
   tumServolariNotrle();
   delay(300);
 
-  // 3 kez sağa dön → düz git
   for (int i = 0; i < 3; i++) {
     servo3.write(45);
     servo5.write(135);
@@ -96,25 +106,50 @@ void gorev_g() {
     delay(300);
   }
 
-  // Yunuslama hareketi
   servo2.write(135);
   servo4.write(45);
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(1000);
-
   servo2.write(45);
   servo4.write(135);
   delay(1000);
-
   servo2.write(135);
   servo4.write(45);
   delay(1000);
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
 
-  // Yüzeye çıkış → LED yanar
-  digitalWrite(ledPin, HIGH);
+  ledPWMYak(); // LED açık
   tumServolariNotrle();
   delay(1000);
+  ledPWMSon(); // LED kapalı
+}
+
+// ------------ GÖREV D (LED ile 3sn kal) ------
+void gorev_d() {
+  tumServolariNotrle();
+  servo2.write(135);
+  servo4.write(45);
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  delay(5000);
+
+  servo2.write(90);
+  servo4.write(90);
+  delay(3000);
+
+  servo2.write(45);
+  servo4.write(135);
+  delay(7000);
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+
+  // Yüzeye çıkış
+  ledPWMYak();
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_DONUS_PWM);
+  delay(3000);
+  motorYavasAzalt(MOTOR_DONUS_PWM, MOTOR_STOP_PWM);
+  ledPWMSon();
+  tumServolariNotrle();
 }
 
 // ------------ GÖREV B --------------------
@@ -122,16 +157,13 @@ void gorev_b() {
   tumServolariNotrle();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
-
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
   servo3.write(135);
   servo5.write(45);
   delay(1500);
-
   motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
   tumServolariNotrle();
   delay(5000);
-
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
   tumServolariNotrle();
 }
@@ -141,49 +173,14 @@ void gorev_c() {
   tumServolariNotrle();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
-
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
   servo3.write(45);
   servo5.write(135);
   delay(1500);
-
   motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
   tumServolariNotrle();
   delay(5000);
-
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
-  tumServolariNotrle();
-}
-
-// ------------ GÖREV D --------------------
-void gorev_d() {
-  tumServolariNotrle();
-
-  // Pitch yukarı
-  servo2.write(135);
-  servo4.write(45);
-  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
-  delay(5000);
-
-  // Stabilizasyon
-  servo2.write(90);
-  servo4.write(90);
-  delay(3000);
-
-  // Pitch aşağı
-  servo2.write(45);
-  servo4.write(135);
-  delay(7000);
-
-  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
-  tumServolariNotrle();
-
-  // Yüzeye çıkış: LED yanar, motor düşük hızda 3 saniye çalışır
-  digitalWrite(ledPin, HIGH);
-  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_DONUS_PWM);
-  delay(3000);
-  motorYavasAzalt(MOTOR_DONUS_PWM, MOTOR_STOP_PWM);
-  digitalWrite(ledPin, LOW);
   tumServolariNotrle();
 }
 
@@ -192,11 +189,9 @@ void gorev_e() {
   tumServolariNotrle();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
-
   servo2.write(135);
   servo4.write(45);
   delay(5000);
-
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
   tumServolariNotrle();
 }
@@ -206,11 +201,9 @@ void gorev_f() {
   tumServolariNotrle();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(3000);
-
   servo2.write(45);
   servo4.write(135);
   delay(5000);
-
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
   tumServolariNotrle();
 }
@@ -220,29 +213,23 @@ void gorev_h() {
   tumServolariNotrle();
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(5000);
-
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
   servo3.write(45);
   servo5.write(135);
   delay(1500);
-
   motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
   tumServolariNotrle();
   delay(5000);
-
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
   servo3.write(135);
   servo5.write(45);
   delay(1500);
-
   motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
   tumServolariNotrle();
   delay(5000);
-
   servo2.write(45);
   servo4.write(135);
   delay(5000);
-
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
   tumServolariNotrle();
 }
