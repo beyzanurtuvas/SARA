@@ -1,0 +1,69 @@
+//-----------------GÖREV 2 DENEME------------------
+
+void gorev3() {
+  tumServolariNotrle();
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  previousTime = millis();
+
+  while (1) {
+    currentTime = millis();
+
+    // 0–5000 ms: Yukarı çık
+    if (currentTime - previousTime < 3000) {
+      if (bno055.getPitch() > -35) {
+        yukariDondur();
+        Serial.println("Yukarı dönüyor");
+      } else if (bno055.getPitch() < -45) {
+        asagiDondur();
+        Serial.println("Aşağı dönüyor (gereksiz ama güvenlik)");
+      } else {
+        tumServolariNotrle();
+        Serial.println("Düz konumda");
+      }
+    }
+
+    // 5000–10000 ms: Düz git
+    else if (currentTime - previousTime > 3000 && currentTime - previousTime < 6000) {
+      tumServolariNotrle();
+      Serial.println("Düz gidiyor");
+    }
+
+    // 10000–15000 ms: Aşağı in
+    else if (currentTime - previousTime > 6000 && currentTime - previousTime < 10000) {
+      if (bno055.getPitch() > -35) {
+        yukariDondur();
+        Serial.println("Yukarı dönüyor (gereksiz ama güvenlik)");
+      } else if (bno055.getPitch() < -45) {
+        asagiDondur();
+        Serial.println("Aşağı dönüyor");
+      } else {
+        tumServolariNotrle();
+        Serial.println("Düz konumda");
+      }
+    }
+
+    // 15000–25000 ms: Yukarı çık (10 saniye)
+    else if (currentTime - previousTime > 10000 && currentTime - previousTime < 15000) {
+      if (bno055.getPitch() > -35) {
+        yukariDondur();
+        Serial.println("Yukarı dönüyor");
+      } else if (bno055.getPitch() < -45) {
+        asagiDondur();
+        Serial.println("Aşağı dönüyor (gereksiz ama güvenlik)");
+      } else {
+        tumServolariNotrle();
+        Serial.println("Düz konumda");
+      }
+    }
+
+    // Görev bitti
+    else if (currentTime - previousTime > 15000 && currentTime - previousTime < 15100) {
+      tumServolariNotrle();
+      motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+      Serial.println("Görev 3 bitti.");
+      delay(100);
+    }
+
+    delay(50);  // Sensör okuma rahatlasın diye kısa bir bekleme
+  }
+}
