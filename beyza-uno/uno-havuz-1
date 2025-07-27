@@ -22,7 +22,7 @@ const int ledPin = 11; // PWM LED pin
 // ----------- ZAMANLAR -----------------
 const int SISTEM_GECIKME = 5000;
 const int GOREV_ARASI_BEKLEME = 60000; // 1 dk
-const int YUZEYDE_BEKLEME = 15000;
+const int YUZEYDE_BEKLEME = 20000;
 
 void setup() {
   // Servo pinleri bağlanıyor
@@ -122,6 +122,24 @@ void gorev2() {
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
   delay(10000); // düz git 10sn
 
+  // 1. sola dön
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  servo3.write(45);
+  servo5.write(135);
+  delay(1500);
+  tumServolariNotrle();
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  delay(5000); // sola gittikten sonra düz 5sn
+
+  // 2. tekrar sağa dön
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  servo3.write(135);
+  servo5.write(45);
+  delay(1500);
+  tumServolariNotrle();
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  delay(5000); // tekrar düz 5sn
+
   // Aşağı dal
   servo2.write(135); // aşağı pitch
   servo4.write(45);
@@ -130,10 +148,9 @@ void gorev2() {
   // Yukarı çık (yunuslama)
   servo2.write(45);
   servo4.write(135);
-  delay(3000);
-  tumServolariNotrle();
+  delay(6000);
 
-  // Yüzeyde kal 15 sn – hafif motor sinyaliyle
+  // Yüzeyde kal 20 sn – hafif motor sinyaliyle
   servo1.writeMicroseconds(1350);
   ledPWMYak();
   delay(YUZEYDE_BEKLEME);
