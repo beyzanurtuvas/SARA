@@ -58,12 +58,12 @@ void setup() {
   asagiIn(7000);     // 7 sn aşağı in
   yukariCik(5000);   // 5 sn yukarı çık
 
-  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM); // Motoru durdur
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM); // Motoru yavaşlat
   tumServolariNotrle();
   ledAc(); // LED tekrar yanar (görev tamam)
   delay(5000);  // LED 5 saniye açık kalsın
   ledKapali();
-
+  motorYavasAzalt(MOTOR_DONUS_PWM, MOTOR_STOP_PWM);
   while (1); // Sonsuz döngü – sistem biter
 }
 
