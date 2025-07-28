@@ -39,7 +39,7 @@ void setup() {
 
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
 
-  yukariCik(8000);
+  yukariCik(3000);
   ileriGit(7000);
 
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
