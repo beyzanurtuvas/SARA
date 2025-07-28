@@ -1,0 +1,175 @@
+#include "ALACAKART.h"
+
+ALACA_KART Veri_Kontrol;
+
+// Sabitler
+const int MOTOR_MAX_PWM    = 1100;
+const int MOTOR_STOP_PWM   = 1490;
+const int MOTOR_DONUS_PWM  = 1250;
+
+float Pitch_Aci, Yaw_Aci;
+float Gyro_y, Gyro_z;
+float Ref_Pitch = 0;
+float Ref_Yaw = 0;
+float pid_hata_pitch = 0, pid_out_pitch = 0;
+float pid_hata_yaw   = 0, pid_out_yaw   = 0;
+float Kp_pitch = 0.1, Ki_pitch = 0.0, Kd_pitch = 0.005;
+float Kp_yaw   = 0.1, Ki_yaw   = 0.0, Kd_yaw   = 0.005;
+float imax = 10;
+
+unsigned long previousTime = 0;
+unsigned long currentTime = 0;
+
+// Motor kontrol
+void motorYavasArtir(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm >= hedefPWM; pwm -= 2) {
+    Veri_Kontrol.Servo_1(pwm);
+    delay(10);
+  }
+}
+
+void motorYavasAzalt(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm <= hedefPWM; pwm += 2) {
+    Veri_Kontrol.Servo_1(pwm);
+    delay(10);
+  }
+}
+
+void tumServolariNotrle() {
+  Veri_Kontrol.Servo_2_Write(90);
+  Veri_Kontrol.Servo_3_Write(90);
+  Veri_Kontrol.Servo_4_Write(90);
+  Veri_Kontrol.Servo_5_Write(90);
+}
+
+// PID hesapla ve uygula
+void PID_Guncelle() {
+  Pitch_Aci = Veri_Kontrol.Euler_Y();
+  Yaw_Aci   = Veri_Kontrol.Euler_Z();
+  Gyro_y    = Veri_Kontrol.GYRO_Y();
+  Gyro_z    = Veri_Kontrol.GYRO_Z();
+
+  pid_hata_pitch = (Ref_Pitch - Pitch_Aci) * 5 - Gyro_y;
+  pid_out_pitch  = Veri_Kontrol.PID_2(pid_hata_pitch, Kp_pitch, Ki_pitch, Kd_pitch, imax);
+
+  pid_hata_yaw = (Ref_Yaw - Yaw_Aci) * 5 - Gyro_z;
+  pid_out_yaw  = Veri_Kontrol.PID_1(pid_hata_yaw, Kp_yaw, Ki_yaw, Kd_yaw, imax);
+
+  Veri_Kontrol.Servo_2_Write(90 + pid_out_pitch);
+  Veri_Kontrol.Servo_4_Write(90 - pid_out_pitch);
+  Veri_Kontrol.Servo_3_Write(90 + pid_out_yaw);
+  Veri_Kontrol.Servo_5_Write(90 - pid_out_yaw);
+}
+
+// ===== GÖREV 1 =====
+void gorev1() {
+  previousTime = millis();
+
+  while (true) {
+    currentTime = millis();
+    unsigned long zaman = currentTime - previousTime;
+    PID_Guncelle();
+
+    if (zaman < 8000) {
+      // 0–8 sn yukarı çık
+      Veri_Kontrol.Servo_2_Write(135);
+      Veri_Kontrol.Servo_4_Write(45);
+      motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+    } else if (zaman < 15000) {
+      // 8–15 sn düz git
+      tumServolariNotrle();
+    } else if (zaman < 16500) {
+      // 15–16.5 sn sağa dön
+      motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+      Veri_Kontrol.Servo_3_Write(135);
+      Veri_Kontrol.Servo_5_Write(45);
+    } else if (zaman < 21500) {
+      // 16.5–21.5 sn düz git
+      motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+      tumServolariNotrle();
+    } else if (zaman < 23000) {
+      // 21.5–23 sn sola dön
+      motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+      Veri_Kontrol.Servo_3_Write(45);
+      Veri_Kontrol.Servo_5_Write(135);
+    } else if (zaman < 28000) {
+      // 23–28 sn düz git
+      motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+      tumServolariNotrle();
+    } else if (zaman < 30000) {
+      // 28–30 sn yukarı çık
+      Veri_Kontrol.Servo_2_Write(135);
+      Veri_Kontrol.Servo_4_Write(45);
+    } else if (zaman < 31000) {
+      // 30–31 sn dur
+      motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+      tumServolariNotrle();
+    } else {
+      break;
+    }
+
+    delay(10);
+  }
+}
+
+// ===== GÖREV 2 =====
+void gorev2() {
+  previousTime = millis();
+
+  while (true) {
+    currentTime = millis();
+    unsigned long zaman = currentTime - previousTime;
+    PID_Guncelle();
+
+    if (zaman < 5000) {
+      motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+      tumServolariNotrle();
+    } else if (zaman < 6500) {
+      motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+      Veri_Kontrol.Servo_3_Write(135);
+      Veri_Kontrol.Servo_5_Write(45);
+    } else if (zaman < 11500) {
+      motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+      tumServolariNotrle();
+    } else if (zaman < 13000) {
+      motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+      Veri_Kontrol.Servo_3_Write(45);
+      Veri_Kontrol.Servo_5_Write(135);
+    } else if (zaman < 18000) {
+      motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+      tumServolariNotrle();
+    } else if (zaman < 20000) {
+      Veri_Kontrol.Servo_2_Write(135);
+      Veri_Kontrol.Servo_4_Write(45);
+    } else if (zaman < 22000) {
+      motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+      tumServolariNotrle();
+    } else {
+      break;
+    }
+
+    delay(10);
+  }
+}
+
+// ===== SETUP ve LOOP =====
+void setup() {
+  Veri_Kontrol.Sensor_begin();
+  Veri_Kontrol.Servo_1_begin();
+  Veri_Kontrol.Servo_2_begin();
+  Veri_Kontrol.Servo_3_begin();
+  Veri_Kontrol.Servo_4_begin();
+  Veri_Kontrol.Servo_5_begin();
+
+  Veri_Kontrol.setup_PID_1();
+  Veri_Kontrol.setup_PID_2();
+
+  delay(5000); // Başlama gecikmesi
+  gorev1();    // Görev 1 başlasın
+  delay(20000); // Görevler arası boşluk
+  gorev2();    // Görev 2 başlasın
+}
+
+void loop() {
+  // Boş, her şey setup içinde otomatik
+}
