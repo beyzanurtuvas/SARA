@@ -24,22 +24,24 @@ void setup() {
   servo1.writeMicroseconds(PWM_DURDUR);
   servoLED.writeMicroseconds(LED_PWM_KAPALI);
 
-  delay(5000); // Sistem açıldıktan sonra 5 saniye bekle
+  delay(10000); // Sistem açıldıktan sonra 10 saniye bekle
 
-  // 1. Aşama: 3 saniye boyunca yavaş PWM ile motor çalışsın
+  // 1. Aşama: 4 saniye boyunca yavaş PWM ile motor çalışsın
   servo1.writeMicroseconds(PWM_YAVAS);
-  delay(3000);
+  delay(4000);
 
   // 2. Aşama: 10 saniye boyunca max PWM + LED 5 saniye açık
   servo1.writeMicroseconds(PWM_HIZLI);
-  servoLED.writeMicroseconds(LED_PWM_ACIK);
+  
   delay(5000); // LED açık süresi
-  servoLED.writeMicroseconds(LED_PWM_KAPALI);
+  servoLED.writeMicroseconds(LED_PWM_ACIK);
+ 
   delay(5000); // LED kapandı ama motor hala çalışıyor
-
-  // 3. Aşama: motoru durdur, 15 saniye bekle
+   servoLED.writeMicroseconds(LED_PWM_KAPALI);
+   
+  // 3. Aşama: motoru durdur, 20 saniye bekle
   servo1.writeMicroseconds(PWM_DURDUR);
-  delay(15000);
+  delay(20000);
 
   // 4. Aşama: LED tekrar yansın
   servoLED.writeMicroseconds(LED_PWM_ACIK);
