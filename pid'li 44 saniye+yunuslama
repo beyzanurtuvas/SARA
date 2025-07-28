@@ -1,0 +1,181 @@
+#include "ALACAKART.h"
+
+ALACA_KART Veri_Kontrol;
+
+// PWM Sabitleri
+const int MOTOR_MAX_PWM    = 1200;
+const int MOTOR_STOP_PWM   = 1500;
+const int MOTOR_DONUS_PWM  = 1350;
+
+// PID Değişkenleri
+float Pitch_Aci, Yaw_Aci;
+float Gyro_y, Gyro_z;
+float Ref_Pitch = 0;
+float Ref_Yaw = 0;
+float pid_hata_pitch = 0, pid_out_pitch = 0;
+float pid_hata_yaw   = 0, pid_out_yaw   = 0;
+float Kp_pitch = 0.1, Ki_pitch = 0.0, Kd_pitch = 0.005;
+float Kp_yaw   = 0.1, Ki_yaw   = 0.0, Kd_yaw   = 0.005;
+float imax = 10;
+
+// LED
+const int LED_SERVO = 6;
+
+void setup() {
+  Veri_Kontrol.Sensor_begin();
+  Veri_Kontrol.Servo_1_begin();
+  Veri_Kontrol.Servo_2_begin();
+  Veri_Kontrol.Servo_3_begin();
+  Veri_Kontrol.Servo_4_begin();
+  Veri_Kontrol.Servo_5_begin();
+  Veri_Kontrol.setup_PID_1();
+  Veri_Kontrol.setup_PID_2();
+
+  tumServolariNotrle();
+  motorDur();
+  ledKapali();
+
+  delay(7000);
+
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+
+  yukariCik(8000);
+  ileriGit(7000);
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  sagaDon(1500);
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  ileriGit(5000);
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  sagaDon(1500);
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  ileriGit(5000);
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  sagaDon(1500);
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  ileriGit(5000);
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  sagaDon(1500);
+  motorYavasArtir(MOTOR_DONUS_PWM, MOTOR_MAX_PWM);
+  yukariCik(8000);
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_STOP_PWM);
+  tumServolariNotrle();
+
+  delay(60000);
+
+  // Yunuslama
+  motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM);
+  yukariCik(3000);
+  ileriGit(5000);
+  asagiIn(7000);
+  yukariCik(5000);
+
+  motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
+  tumServolariNotrle();
+  ledAc();
+  delay(5000);
+  ledKapali();
+  motorYavasAzalt(MOTOR_DONUS_PWM, MOTOR_STOP_PWM);
+
+  while (1);
+}
+
+void loop() {}
+
+void PID_Guncelle() {
+  Pitch_Aci = Veri_Kontrol.Euler_Y();
+  Yaw_Aci   = Veri_Kontrol.Euler_Z();
+  Gyro_y    = Veri_Kontrol.GYRO_Y();
+  Gyro_z    = Veri_Kontrol.GYRO_Z();
+
+  pid_hata_pitch = (Ref_Pitch - Pitch_Aci) * 5 - Gyro_y;
+  pid_out_pitch  = Veri_Kontrol.PID_2(pid_hata_pitch, Kp_pitch, Ki_pitch, Kd_pitch, imax);
+
+  pid_hata_yaw = (Ref_Yaw - Yaw_Aci) * 5 - Gyro_z;
+  pid_out_yaw  = Veri_Kontrol.PID_1(pid_hata_yaw, Kp_yaw, Ki_yaw, Kd_yaw, imax);
+
+  Veri_Kontrol.Servo_2_Write(90 + pid_out_pitch);
+  Veri_Kontrol.Servo_4_Write(90 - pid_out_pitch);
+  Veri_Kontrol.Servo_3_Write(90 + pid_out_yaw);
+  Veri_Kontrol.Servo_5_Write(90 - pid_out_yaw);
+}
+
+void ileriGit(int sure) {
+  unsigned long startTime = millis();
+  while (millis() - startTime < sure) {
+    PID_Guncelle();
+    delay(10);
+  }
+}
+
+void sagaDon(int sure) {
+  unsigned long startTime = millis();
+  while (millis() - startTime < sure) {
+    Veri_Kontrol.Servo_3_Write(135);
+    Veri_Kontrol.Servo_5_Write(45);
+    PID_Guncelle();
+    delay(10);
+  }
+  tumServolariNotrle();
+}
+
+void yukariCik(int sure) {
+  unsigned long startTime = millis();
+  while (millis() - startTime < sure) {
+    Veri_Kontrol.Servo_2_Write(45);
+    Veri_Kontrol.Servo_4_Write(135);
+    PID_Guncelle();
+    delay(10);
+  }
+  tumServolariNotrle();
+}
+
+void asagiIn(int sure) {
+  unsigned long startTime = millis();
+  while (millis() - startTime < sure) {
+    Veri_Kontrol.Servo_2_Write(135);
+    Veri_Kontrol.Servo_4_Write(45);
+    PID_Guncelle();
+    delay(10);
+  }
+  tumServolariNotrle();
+}
+
+void motorYavasArtir(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm >= hedefPWM; pwm -= 2) {
+    Veri_Kontrol.Servo_1(pwm);
+    PID_Guncelle();
+    delay(10);
+  }
+}
+
+void motorYavasAzalt(int baslangicPWM, int hedefPWM) {
+  for (int pwm = baslangicPWM; pwm <= hedefPWM; pwm += 2) {
+    Veri_Kontrol.Servo_1(pwm);
+    PID_Guncelle();
+    delay(10);
+  }
+}
+
+void motorDur() {
+  Veri_Kontrol.Servo_1(MOTOR_STOP_PWM);
+}
+
+void tumServolariNotrle() {
+  Veri_Kontrol.Servo_2_Write(90);
+  Veri_Kontrol.Servo_3_Write(90);
+  Veri_Kontrol.Servo_4_Write(90);
+  Veri_Kontrol.Servo_5_Write(90);
+}
+
+void ledAc() {
+  Veri_Kontrol.Servo_Write(LED_SERVO, 1900);
+}
+
+void ledKapali() {
+  Veri_Kontrol.Servo_Write(LED_SERVO, 1100);
+}
