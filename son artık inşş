@@ -1,0 +1,50 @@
+#include <Servo.h>
+
+// ----------- SERVO NESNELERİ -----------
+Servo servo1;     // ESC motor
+Servo servoLED;   // PWM LED çıkışı
+
+// ----------- PWM SABİTLERİ -------------
+const int PWM_YAVAS     = 1400;   // Yavaş ilerleme PWM
+const int PWM_HIZLI     = 1000;   // Maksimum hız PWM
+const int PWM_DURDUR    = 1500;   // Motor durdurma PWM
+const int LED_PWM_ACIK  = 1900;   // LED açık PWM
+const int LED_PWM_KAPALI = 1100;  // LED kapalı PWM
+
+// ----------- PINLER --------------------
+const int MOTOR_PIN = 3;
+const int LED_PIN   = 11;
+
+void setup() {
+  // Servo pinlerini tanımla
+  servo1.attach(MOTOR_PIN);
+  servoLED.attach(LED_PIN);
+
+  // Başlangıçta motor ve LED kapalı
+  servo1.writeMicroseconds(PWM_DURDUR);
+  servoLED.writeMicroseconds(LED_PWM_KAPALI);
+
+  delay(5000); // Sistem açıldıktan sonra 5 saniye bekle
+
+  // 1. Aşama: 3 saniye boyunca yavaş PWM ile motor çalışsın
+  servo1.writeMicroseconds(PWM_YAVAS);
+  delay(3000);
+
+  // 2. Aşama: 10 saniye boyunca max PWM + LED 5 saniye açık
+  servo1.writeMicroseconds(PWM_HIZLI);
+  servoLED.writeMicroseconds(LED_PWM_ACIK);
+  delay(5000); // LED açık süresi
+  servoLED.writeMicroseconds(LED_PWM_KAPALI);
+  delay(5000); // LED kapandı ama motor hala çalışıyor
+
+  // 3. Aşama: motoru durdur, 15 saniye bekle
+  servo1.writeMicroseconds(PWM_DURDUR);
+  delay(15000);
+
+  // 4. Aşama: LED tekrar yansın
+  servoLED.writeMicroseconds(LED_PWM_ACIK);
+}
+
+void loop() {
+  // Sistem tek seferlik çalışır, loop boş kalır
+}
