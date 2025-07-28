@@ -14,6 +14,13 @@ void setup() {
   tumServolariNotrle();
   motorDur();
   ledKapali();
+  Veri_Kontrol.Sensor_begin();
+  Veri_Kontrol.Servo_1_begin();
+  Veri_Kontrol.Servo_2_begin();
+  Veri_Kontrol.Servo_3_begin();
+  Veri_Kontrol.Servo_4_begin();
+  Veri_Kontrol.Servo_5_begin();
+  Veri_Kontrol.Servo_6_begin();
 
   delay(7000); // Sistem başlama gecikmesi (7 saniye)
 
@@ -133,9 +140,9 @@ void tumServolariNotrle() {
 }
 
 void ledAc() {
-  Veri_Kontrol.Servo_Write(LED_SERVO, 1900);
+  Veri_Kontrol.Servo_6(1900);
 }
 
 void ledKapali() {
-  Veri_Kontrol.Servo_Write(LED_SERVO, 1100);
+  Veri_Kontrol.Servo_6(1100);
 }
