@@ -27,7 +27,7 @@ void setup() {
   // Görev Başlıyor
   motorYavasArtir(MOTOR_STOP_PWM, MOTOR_MAX_PWM); // Motoru yumuşak başlat
 
-  yukariCik(8000); //0-8 saniye yukarı
+  yukariCik(4000); //0-8 saniye yukarı
   ileriGit(7000); // 8-15 sn düz git
 
   motorYavasAzalt(MOTOR_MAX_PWM, MOTOR_DONUS_PWM);
