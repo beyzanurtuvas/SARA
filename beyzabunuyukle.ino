@@ -4,7 +4,7 @@ ALACA_KART Veri_Kontrol;
 // -------- PWM Sabitleri --------
 const int MOTOR_MAX_PWM    = 1000;
 const int MOTOR_STOP_PWM   = 1500;
-const int MOTOR_DONUS_PWM  = 1350;
+const int MOTOR_DONUS_PWM  = 1200;
 
 // -------- Zamanlar --------
 const int DONUS_SURESI     = 1500;
