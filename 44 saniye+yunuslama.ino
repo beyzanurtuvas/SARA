@@ -11,9 +11,7 @@ const int DONUS_SURESI     = 1500;
 const int LED_SERVO        = 6;
 
 void setup() {
-  tumServolariNotrle();
-  motorDur();
-  ledKapali();
+
   Veri_Kontrol.Sensor_begin();
   Veri_Kontrol.Servo_1_begin();
   Veri_Kontrol.Servo_2_begin();
@@ -22,6 +20,9 @@ void setup() {
   Veri_Kontrol.Servo_5_begin();
   Veri_Kontrol.Servo_6_begin();
 
+    tumServolariNotrle();
+  motorDur();
+  ledKapali();
   delay(7000); // Sistem başlama gecikmesi (7 saniye)
 
   // Görev Başlıyor
